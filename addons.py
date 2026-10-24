@@ -4,14 +4,17 @@ installer:
   stems    vocal separation (Demucs + PyTorch, about 1 GB)
   lyrics   AI verse detection: reads the words off the separated vocals
            (faster-whisper + the Whisper "small" model, about 650 MB)
+  gpu      NVIDIA GPU support for both (PyTorch's CUDA build, about 3 GB).
+           Only offered when an NVIDIA card is found. A Mac needs no
+           download: the regular PyTorch already uses Apple Silicon.
 
 They share one private Python in the user's app-data folder, so the
 installed app stays small and nothing touches a Python you may have. Every
 place a download comes from is listed in SOURCES, shown before anything is
 downloaded and printed again as it happens.
 
-    python addons.py install [stems|lyrics]   # what the app's download buttons run
-    python addons.py sources [stems|lyrics]
+    python addons.py install [stems|lyrics|gpu]   # what the app's download buttons run
+    python addons.py sources [stems|lyrics|gpu]
     python addons.py status
 """
 from __future__ import annotations
@@ -31,8 +34,12 @@ PACKAGES = {"stems": ["demucs", "soundfile", "numpy"], "lyrics": ["faster-whispe
 DEMUCS_MODEL = "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th"
 WHISPER_REPO = "Systran/faster-whisper-small"
 WHISPER_URL = f"https://huggingface.co/{WHISPER_REPO}"
-NAMES = {"stems": "Vocal separation", "lyrics": "AI verse detection"}
-SIZES = {"stems": "about 1 GB", "lyrics": "about 650 MB"}
+# PyTorch built for CUDA, tried in this order: CUDA 12 first, because
+# faster-whisper (CTranslate2) uses the cuBLAS/cuDNN 12 libraries it ships
+TORCH_CUDA = "https://download.pytorch.org/whl"
+TORCH_CUDA_BUILDS = ("cu128", "cu126", "cu130")
+NAMES = {"stems": "Vocal separation", "lyrics": "AI verse detection", "gpu": "NVIDIA GPU support"}
+SIZES = {"stems": "about 1 GB", "lyrics": "about 650 MB", "gpu": "about 3 GB"}
 
 
 def sources(kind: str) -> list[tuple[str, str]]:
@@ -45,6 +52,10 @@ def sources(kind: str) -> list[tuple[str, str]]:
         out += [("Demucs, SoundFile, NumPy and PyTorch (Demucs needs it), from the Python "
                  "Package Index", PYPI),
                 ("The htdemucs separation model (Meta)", DEMUCS_MODEL)]
+    elif kind == "gpu":
+        out += [("PyTorch and torchaudio built for NVIDIA CUDA, with the CUDA libraries they "
+                 "need, replacing the CPU-only PyTorch (PyTorch's own package server; the first "
+                 f"of {', '.join(TORCH_CUDA_BUILDS)} that installs)", f"{TORCH_CUDA}/{TORCH_CUDA_BUILDS[0]}")]
     else:
         out += [("faster-whisper and what it needs (CTranslate2, tokenizers, huggingface-hub, "
                  "PyAV, ONNX Runtime), from the Python Package Index", PYPI),
@@ -108,7 +119,24 @@ def lyrics_python() -> str | None:
     return str(p) if p.is_file() and (addon_dir() / "lyrics.ok").is_file() else None
 
 
+def gpu_python() -> str | None:
+    """The add-ons' Python if it has the CUDA build of PyTorch, else None."""
+    p = stems_python()
+    if p is None:
+        return None
+    if p != sys.executable and not (addon_dir() / "gpu.ok").is_file():
+        return None
+    try:
+        r = subprocess.run([p, "-c", "import torch; print(torch.version.cuda or '')"],
+                           capture_output=True, text=True, timeout=120, **_no_window())
+        return p if r.returncode == 0 and r.stdout.strip() else None
+    except Exception:
+        return None
+
+
 def installed(kind: str = "stems") -> bool:
+    if kind == "gpu":
+        return gpu_python() is not None
     return (stems_python() if kind == "stems" else lyrics_python()) is not None
 
 
@@ -156,6 +184,9 @@ def install(log=print, kind: str = "stems") -> None:
     for what, url in sources(kind):
         log(f"  {what}: {url}")
     py = _python(log)
+    if kind == "gpu":
+        _install_cuda_torch(py, log)
+        return
     log(f"installing {', '.join(PACKAGES[kind])} from {PYPI} (this takes a while)")
     subprocess.run([str(py), "-m", "pip", "install", "--no-warn-script-location", *PACKAGES[kind]],
                    check=True, **_no_window())
@@ -170,6 +201,30 @@ def install(log=print, kind: str = "stems") -> None:
                        check=True, **_no_window())
         (addon_dir() / "lyrics.ok").write_text("ok")
         log("AI verse detection is ready")
+
+
+def _install_cuda_torch(py: Path, log) -> None:
+    """Swap the add-ons' CPU-only PyTorch for the CUDA build. Vocal separation
+    has to be there first (it brings the rest of what Demucs needs)."""
+    if stems_python() is None:
+        raise RuntimeError("download vocal separation first: GPU support speeds it up")
+    for build in TORCH_CUDA_BUILDS:
+        url = f"{TORCH_CUDA}/{build}"
+        log(f"installing PyTorch for CUDA ({build}) from {url} (this takes a while)")
+        r = subprocess.run([str(py), "-m", "pip", "install", "--no-warn-script-location", "--upgrade",
+                            "--force-reinstall", "torch", "torchaudio", "--index-url", url], **_no_window())
+        if r.returncode == 0:
+            break
+        log(f"no {build} build for this Python; trying the next one")
+    else:
+        raise RuntimeError("no CUDA build of PyTorch installed")
+    r = subprocess.run([str(py), "-c", "import torch; print(torch.cuda.get_device_name(0) "
+                        "if torch.cuda.is_available() else '')"], capture_output=True, text=True, **_no_window())
+    name = r.stdout.strip()
+    (addon_dir() / "gpu.ok").write_text("ok")
+    log(f"GPU support is ready: {name}" if name else
+        "GPU support is installed, but PyTorch can't see the GPU (an old NVIDIA driver?); "
+        "stepgen keeps using the CPU until it can")
 
 
 def _here() -> Path:

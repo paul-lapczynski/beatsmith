@@ -2850,7 +2850,13 @@ def main(argv=None) -> int:
     ap.add_argument("--ai", type=float, default=0.0, metavar="0..1",
                     help="AI assist on every difficulty: how much the model trained on hand-made "
                          "charts decides where steps go (needs models/step_placement_v1.onnx)")
+    ap.add_argument("--device", choices=("auto", "cpu"), default=None,
+                    help="where vocal separation, AI verse detection and AI assist run: auto = "
+                         "the GPU when there is one (NVIDIA or Apple Silicon), else the CPU "
+                         "(the default; see accel.py)")
     args = ap.parse_args(argv)
+    if args.device:
+        os.environ["STEPGEN_DEVICE"] = args.device       # the add-ons' own Python inherits it
     if args.list_profiles:
         for f in sorted(PROFILES_DIR.glob("*.toml")):
             first = next((l[1:].strip() for l in f.read_text().splitlines() if l.startswith("#")), "")
