@@ -40,6 +40,8 @@ MP3, OGG, WAV and FLAC load directly; anything else goes through ffmpeg.
 | `--set Hard.jump=0.8` | Change one setting for this run (repeatable). Always wins over `--easy` |
 | `--backoff` | Make the hardest chart first and cut the easier ones out of it |
 | `--clicks` | Also writes `<title>.clicks.wav`: the song with a tick on every Hard note, to check sync by ear |
+| `--no-art` | Leave the banner, background and jacket empty. See "Song artwork" |
+| `--art-online` | Look the artwork up online when the song has none. See "Song artwork" |
 
 ## The app
 
@@ -377,6 +379,36 @@ The app says which GPU it found under the option. If the GPU fails (out
 of memory, an old driver), that step runs on the CPU instead, so a GPU never
 breaks a run. On the command line it's `--device auto|cpu`, and
 `python accel.py` prints what stepgen would use on this computer.
+
+### Song artwork
+
+Each song gets a banner (`<title>-bn.png`, 418x164), a background
+(`<title>-bg.png`, 640x480, dimmed so the arrows stay easy to read) and a
+jacket (`<title>-jacket.png`, 512x512), filled into the .sm's `#BANNER`,
+`#BACKGROUND` and `#JACKET`. The picture comes from, in order:
+
+1. an image beside the song: the song's own name (`My Song.jpg` for
+   `My Song.mp3`), else `cover`, `folder`, `front` or `album` .jpg/.png
+2. art already in the song folder from an earlier run, kept as it is, so
+   you can swap in your own (delete the files to make them again)
+3. the cover art inside the song file (MP3, FLAC, Ogg, M4A)
+4. online, only when Options > **Look up artwork online when a song has
+   none** is ticked (`--art-online`)
+
+Nothing is downloaded for 1 to 3. The online lookup sends the song's title
+and artist to these sites, and each address is listed in the song's log
+before it's fetched:
+
+| What | From |
+|---|---|
+| Song search by title and artist | https://musicbrainz.org (MusicBrainz) |
+| The cover for what it finds | https://coverartarchive.org (Cover Art Archive; the files come from archive.org) |
+| When MusicBrainz has none | https://itunes.apple.com (iTunes Search API; the pictures come from Apple's mzstatic.com) |
+
+Options > **Add song artwork** off (`--no-art`) leaves them empty.
+`python artwork.py song.mp3 --out folder [--online]` makes the pictures
+for one song on its own. The art is for your own copies of the songs;
+album covers belong to their owners.
 
 ## Profiles (play styles)
 

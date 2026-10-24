@@ -8,7 +8,7 @@ datas = [(root + "/patterns.toml", "."), (root + "/profiles", "profiles"),
          (root + "/stems.py", "."), (root + "/lyrics.py", "."),     # run by the optional add-ons' own Python
          (root + "/accel.py", ".")]
 datas += [(root + "/models", "models")]                          # AI assist model
-binaries, hidden = [], ["stepgen", "chartstats", "llm_review", "chart_editor", "groove", "layout", "shorten", "verses", "addons", "ai_assist", "accel", "stems", "mutagen", "sounddevice"]
+binaries, hidden = [], ["stepgen", "chartstats", "llm_review", "chart_editor", "groove", "layout", "shorten", "verses", "addons", "ai_assist", "accel", "artwork", "stems", "mutagen", "sounddevice"]
 for pkg in ("librosa", "soundfile", "lazy_loader", "audioread", "soxr", "sounddevice", "_sounddevice_data", "onnxruntime"):
     d, b, h = collect_all(pkg)
     datas += d

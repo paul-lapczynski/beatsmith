@@ -700,6 +700,25 @@ class Window(QMainWindow):
         f.addRow(self.keep_format)
         self.clicks = QCheckBox("Also write a click track (.clicks.wav) to check sync")
         f.addRow(self.clicks)
+        # song artwork (artwork.py): the song's own cover art; online only when ticked
+        import artwork
+        self.art = QCheckBox("Add song artwork: banner, background and jacket")
+        self.art.setChecked(True)
+        self.art.setToolTip("Made from an image beside the song (the song's own name, or cover.jpg / "
+                            "folder.jpg) or else the cover art inside the song file. Nothing is downloaded. "
+                            "Art already in the song folder is kept, so you can replace it by hand.")
+        f.addRow(self.art)
+        self.art_online = QCheckBox("Look up artwork online when a song has none")
+        self.art_online.setToolTip("Sends the song's title and artist to these sites and downloads the "
+                                   "cover it finds. Each address is listed in the song's log.\n\n"
+                                   + "\n".join(f"{what}: {where}" for what, where in artwork.ONLINE_SOURCES))
+        f.addRow(self.art_online)
+        self.art_sources = QLabel("Searches musicbrainz.org, then itunes.apple.com; covers come from "
+                                  "coverartarchive.org (archive.org) or Apple's mzstatic.com.")
+        self.art_sources.setWordWrap(True)
+        self.art_sources.setStyleSheet("color: gray;")
+        f.addRow(self.art_sources)
+        self.art.toggled.connect(self.art_online.setEnabled)
         # hardware acceleration: only the neural-network parts can use a GPU (accel.py)
         self.device = QComboBox()
         self.device.addItem("Use the GPU when there is one", "auto")
@@ -1015,6 +1034,10 @@ class Window(QMainWindow):
             args.append("--keep-format")
         if self.clicks.isChecked():
             args.append("--clicks")
+        if not self.art.isChecked():
+            args.append("--no-art")
+        elif self.art_online.isChecked():
+            args.append("--art-online")
         return args
 
     def _watch_panel(self):
@@ -1132,6 +1155,8 @@ class Window(QMainWindow):
         self.overrides = json.loads(st.value("overrides", "{}"))
         self.device.setCurrentIndex(max(0, self.device.findData(st.value("device", "auto"))))
         self._gpu_state(check_install=True)
+        self.art.setChecked(st.value("art", "true") == "true")
+        self.art_online.setChecked(st.value("art_online", "false") == "true")
 
     def closeEvent(self, ev):
         if not self.editor.confirm_discard():
@@ -1166,6 +1191,8 @@ class Window(QMainWindow):
         st.setValue("backoff", "true" if self.backoff.isChecked() else "false")
         st.setValue("overrides", json.dumps(self.overrides))
         st.setValue("device", self.device.currentData())
+        st.setValue("art", "true" if self.art.isChecked() else "false")
+        st.setValue("art_online", "true" if self.art_online.isChecked() else "false")
         super().closeEvent(ev)
 
     # ---------------------------------------------------------------- queue
@@ -1445,9 +1472,10 @@ class Window(QMainWindow):
                 kept.append(line)
         job.log += "".join(l + "\n" for l in kept)
         for line in kept:
-            m = re.match(r"progress: (analyzing|charting|separating) (.*)", line)
+            m = re.match(r"progress: (analyzing|charting|separating|finding) (.*)", line)
             if m:
-                self._set_status(job, {"analyzing": "Analyzing…", "separating": "Separating vocals…"}.get(
+                self._set_status(job, {"analyzing": "Analyzing…", "separating": "Separating vocals…",
+                                       "finding": "Finding artwork…"}.get(
                     m.group(1), f"Charting {m.group(2)}…"), "#2471a3")
             m = re.match(r"\s+(\w+)\s+meter\s+(\d+)", line)
             if m:
