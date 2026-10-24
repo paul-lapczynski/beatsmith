@@ -537,6 +537,17 @@ def load_patterns(path: Path = DEFAULT_PATTERNS, overrides: list[str] = (),
     return specs
 
 
+# Stomps (quarter-note jumps where a pause lands on big beats) top out
+# here on the sliders, so more breathing room means more real gaps.
+MAX_STOMPS = 0.4
+
+# Settings the dial test (dialtest/REPORT.md) found no measurable effect
+# for. Profiles that set them still load and are used as written, but no
+# slider moves them and the app shows them as retired. max_nps is also
+# set by the difficulty target, which turns it as part of density.
+DEPRECATED = {"jacks", "jack_max", "flow", "hold_complexity", "hold_free_foot",
+              "intensity_variation", "max_run16", "max_nps", "meter_min", "meter_max"}
+
 # Easy mode: a few plain sliders, each 0..1, where 0.5 leaves the profile as
 # written. Each one pushes a group of settings toward their low or high end
 # together. The app shows these; --easy NAME=VALUE does the same on the
@@ -545,22 +556,19 @@ EASY_SLIDERS = {
     # slider: [(setting, low end, high end), ...]
     # groove is the overall one: it goes first, so the sliders below still
     # have the last word on their own settings
-    "groove":     [("rhythm_repeat", 0.5, 0.97), ("beat_backbone", 0.0, 0.8), ("flow", 0.3, 1.0),
-                   ("jacks", 0.6, 0.0), ("energy_follow", 0.2, 1.0), ("phrase_shape", 0.0, 0.8),
-                   ("run_breaks", 0.0, 0.9), ("recovery", 0.0, 0.9), ("stomps", 0.0, 0.7),
+    "groove":     [("rhythm_repeat", 0.5, 0.97), ("beat_backbone", 0.0, 0.8),
+                   ("energy_follow", 0.2, 1.0), ("phrase_shape", 0.0, 0.8),
+                   ("run_breaks", 0.0, 0.9), ("recovery", 0.0, 0.9), ("stomps", 0.0, MAX_STOMPS),
                    ("rhythm_lock", 0.0, 0.9), ("groove_tries", 1, 4)],
     "energy":     [("energy_follow", 0.0, 1.0), ("crescendo", 0.0, 1.0),
                    ("phrase_shape", 0.0, 1.0), ("rest_bars", 0.0, 0.8)],
     "jumps":      [("jump", 0.0, 0.9), ("jump_clusters", 0.0, 1.0), ("jump_holds", 0.0, 1.0)],
-    "breathing":  [("run_breaks", 0.0, 1.0), ("recovery", 0.0, 1.0), ("stomps", 0.0, 0.8)],
+    "breathing":  [("run_breaks", 0.0, 1.0), ("recovery", 0.0, 1.0), ("stomps", 0.0, MAX_STOMPS)],
     "speed":      [("half_beats", 0.0, 1.0), ("quarter_beats", 0.0, 0.6), ("sixteenths", 0.0, 2.0),
                    ("flow_spice", 0.0, 0.6), ("beat_backbone", 1.0, 0.0)],
-    "footwork":   [("flow", 0.2, 1.0), ("flow_runs", 0.0, 1.0),
-                   ("side_to_side", 1.0, 0.0), ("jacks", 0.6, 0.0)],
-    "holds":      [("hold_rate", 0.0, 0.4), ("hold_complexity", 0.0, 1.0),
-                   ("hold_free_foot", 0.0, 1.0)],
-    "repetition": [("rhythm_repeat", 0.0, 1.0), ("arrow_repeat", 0.0, 1.0),
-                   ("intensity_variation", 1.0, 0.0)],
+    "footwork":   [("flow_runs", 0.0, 1.0), ("side_to_side", 1.0, 0.0)],
+    "holds":      [("hold_rate", 0.0, 0.4)],
+    "repetition": [("rhythm_repeat", 0.0, 1.0), ("arrow_repeat", 0.0, 1.0)],
 }
 
 
@@ -1882,35 +1890,55 @@ def meter_for(notes: list[Note], a: Analysis, spec: DiffSpec) -> int:
     return int(np.clip(round(estimate_meter(notes, a.spb)), 1, 20))
 
 
-def with_intensity(spec: DiffSpec, k: float, nps_8ths: float | None = None) -> DiffSpec:
-    """One dial over the settings that make a chart harder, in a sensible
-    order: more steps and jumps, then 8th runs, fewer holds and a few
-    quarter-beat bursts, then 16th streams. k = 0 is the profile as written,
-    -1 much easier (down to -2), +1 about as busy as 8th notes allow, +2 streams. The
-    profile's own feel (flow, repeats, the arc) is left alone.
+KONAMI_K = 3.0   # the dial as far as Konami's own charts go
+TOP_K = 4.5      # past that, for 9s and 10s: denser 16th streams than Konami's
 
-    Past +1 the chart opens up to the full 16th grid, which would flood it
-    at once, so the step count is held to nps_8ths (the notes/sec the chart
-    had at +1) plus up to 60% more."""
+
+def with_intensity(spec: DiffSpec, k: float, nps_8ths: float | None = None) -> DiffSpec:
+    """One dial for the difficulty number, in stages so the Feel sliders
+    keep their say as long as they can. k = 0 is the profile as written.
+
+      -2..1  density: how many steps, the grid and spacing they sit on,
+             the notes/sec cap, jumps and holds (those two keep turning
+             to 2, as they always have). Speed's settings (8ths,
+             quarter-beat bursts, 16ths, flow spice) stay where Speed put them.
+       1..2  16th streams, a bit at a time, still within Speed's 16th
+             allowance: the step count is held to nps_8ths (the notes/sec
+             at 1) plus up to 60% more.
+       2..3  density can't do more: Speed's settings rise, 8th runs first,
+             then quarter-beat bursts.
+       3..TOP_K  for 9s and 10s: more and longer 16th streams than Konami's
+             usual, past Speed's allowance.
+
+    The profile's own feel (flow, repeats, the arc) is left alone."""
     c = lambda x: float(np.clip(x, 0.0, 1.0))
     d = dataclasses.replace(spec)
-    d.density = spec.density * 2 ** min(k, 1.0)
-    d.max_nps = max(spec.max_nps, 2.5 + 2 * k) if k > 0 else spec.max_nps
-    d.jump = c(spec.jump + 0.12 * k)
-    d.hold_rate = c(spec.hold_rate * (1 - 0.4 * k))
-    d.half_beats = c(spec.half_beats + 0.35 * k)
+    kd = min(k, 1.0)                    # the density stage
+    d.density = spec.density * 2 ** kd
+    d.max_nps = max(spec.max_nps, 2.5 + 2 * kd) if k > 0 else spec.max_nps
+    kj = min(k, 2.0)                    # jumps and holds keep turning a while longer
+    d.jump = c(spec.jump + 0.12 * kj)
+    d.hold_rate = c(spec.hold_rate * (1 - 0.4 * kj))
     if k < -0.4:                        # down to beat notes only
         d.grid, d.min_gap = 1, max(spec.min_gap, 1.0)
     elif k > 0:
         d.grid = max(spec.grid, 2)
         d.min_gap = min(spec.min_gap, 0.5)
-    if k > 0.6:                         # quarter-beat bursts on top of the 8ths
-        d.quarter_beats = c(spec.quarter_beats + 0.5 * (k - 0.6))
-        d.flow_spice = c(spec.flow_spice + 0.3 * (k - 0.6))
-    if k > 1.0 and nps_8ths:            # 16th streams, a bit at a time
+    if k > 1.0 and nps_8ths:            # 16th streams
+        t = min(k - 1.0, 1.0) + max(0.0, k - KONAMI_K)
         d.grid, d.min_gap = 4, min(spec.min_gap, 0.25)
-        d.density = spec.density * 4
-        d.max_nps = nps_8ths * (1 + 0.6 * (k - 1.0))
+        d.density = spec.density * (4 + 2 * max(0.0, k - KONAMI_K))
+        d.max_nps = nps_8ths * (1 + 0.6 * t)
+    if k > 2.0:                         # Speed's settings, only past what density reaches
+        ks = min(k, KONAMI_K) - 2.0
+        d.half_beats = c(spec.half_beats + 0.35 * ks)
+        if ks > 0.6:                    # quarter-beat bursts on top of the 8ths
+            d.quarter_beats = c(spec.quarter_beats + 0.5 * (ks - 0.6))
+            d.flow_spice = c(spec.flow_spice + 0.3 * (ks - 0.6))
+    if k > KONAMI_K:                    # past Konami-typical: more and longer 16th runs
+        x = k - KONAMI_K
+        d.sixteenths = max(spec.sixteenths, 1.0) * (1 + x)
+        d.max_run16 = spec.max_run16 + int(round(6 * x))
     return d
 
 
@@ -2034,7 +2062,7 @@ def made_with_md(made_with: dict) -> list[str]:
             out.append(f"- **{d}**: made with the settings as asked")
         else:
             out.append(f"- **{d}**: the meter target changed {len(r['changed'])} settings"
-                       + (f"; {r['breathing']}" if r.get("breathing") else ""))
+                       + "".join(f"; {r[k]}" for k in ("speed", "breathing") if r.get(k)))
     keys = sorted({k for d in order for k in made_with[d]["changed"]})
     if keys:
         fmt = lambda v: f"{v:.3g}" if isinstance(v, (int, float)) else str(v)
@@ -2207,6 +2235,13 @@ def made_record(asked: DiffSpec, used: DiffSpec) -> dict:
                 if getattr(asked, k) > 0]
         rec["breathing"] = (f"breathing room eased to {round(100 * breathing_share(asked, used))}% "
                             f"({', '.join(bits)}) to get to meter {asked.target_meter:g}")
+    raised = [f"{label} {getattr(asked, k):.2f} → {getattr(used, k):.2f}"
+              for k, label in (("half_beats", "8ths"), ("quarter_beats", "quarter-beat bursts"),
+                               ("flow_spice", "flow spice"))
+              if getattr(used, k) > getattr(asked, k) + 1e-6]
+    if raised:
+        rec["speed"] = (f"Speed raised ({', '.join(raised)}) to get to meter {asked.target_meter:g}"
+                        + ("; 16th streams added" if used.grid >= 4 > asked.grid else ""))
     return rec
 
 
@@ -2215,56 +2250,84 @@ def breathing_share(asked: DiffSpec, used: DiffSpec) -> float:
     return getattr(used, k) / getattr(asked, k) if getattr(asked, k) > 0 else 1.0
 
 
-def aim_for_meter(a: Analysis, spec: DiffSpec, repeats, rng: random.Random, ease: bool = True):
-    """Turn the intensity dial until the chart rates spec.target_meter.
-    Each try starts from the same random state, so the dial is the only
-    thing that changes between them."""
+def aim_for_meter(a: Analysis, spec: DiffSpec, repeats, rng: random.Random):
+    """Turn the intensity dial (with_intensity) until the chart rates
+    spec.target_meter. Each try starts from the same random state, so the
+    dial is the only thing that changes between them. In order, each only
+    when what came before can't reach the number: the dial as far as
+    Konami's charts go, then half the breathing room, then past Konami
+    (for 9s and 10s)."""
     state = rng.getstate()
+    goal = spec.target_meter
+    s, notes, est = _dial(a, spec, repeats, rng, state, KONAMI_K)
+    if est < goal - 0.5 and (spec.run_breaks > 0 or spec.recovery > 0):
+        # pauses cost steps: rather than miss the difficulty asked for, ease
+        # the breathing room (never all the way off: the pauses are the groove)
+        calm = dataclasses.replace(spec, run_breaks=spec.run_breaks * 0.5, recovery=spec.recovery * 0.5)
+        got = _dial(a, calm, repeats, rng, state, KONAMI_K)
+        if abs(got[2] - goal) < abs(est - goal):
+            s, notes, est = got
+            print(f"  {spec.name}: less breathing room (50%) to reach meter {goal:g}")
+    if est < goal - 0.5:
+        # still short: past what Konami's charts do, if it really gets closer
+        base = dataclasses.replace(spec, run_breaks=s.run_breaks, recovery=s.recovery)
+        got = _dial(a, base, repeats, rng, state, TOP_K, lo=KONAMI_K)
+        if abs(got[2] - goal) < abs(est - goal) - 0.25:
+            s, notes, est = got
+            print(f"  {spec.name}: denser 16th streams than Konami's to reach meter {goal:g}")
+    if abs(est - goal) > 0.75:
+        print(f"  {spec.name}: couldn't reach meter {goal:g} on this song (closest {est:.1f})")
+    return s, notes
+
+
+def _dial(a: Analysis, spec: DiffSpec, repeats, rng: random.Random, state, top: float,
+          lo: float | None = None):
+    """The dial setting in [-2, top] whose chart rates closest to the target."""
     span = max(a.music_end - a.music_start, 1.0)
-    nps_8ths = None
+    nps = {}
 
     def run(k):
+        if k > 1.0 and "8ths" not in nps:
+            rng.setstate(state)
+            nps["8ths"] = len(make_chart(a, with_intensity(spec, 1.0), repeats, rng)) / span
         rng.setstate(state)
-        s = with_intensity(spec, k, nps_8ths)
+        s = with_intensity(spec, k, nps.get("8ths"))
         notes = make_chart(a, s, repeats, rng)
         return s, notes, estimate_meter(notes, a.spb)
 
     goal = spec.target_meter
-    best = run(0.0)
-    lo, hi = (-2.0, 0.0) if best[2] > goal else (0.0, 1.0)
-    if best[2] < goal:
-        top = run(1.0)
-        nps_8ths = len(top[1]) / span
-        if top[2] < goal:               # 8ths aren't enough: search the stream range
-            lo, hi, best = 1.0, 2.0, top
+    if lo is not None:                  # searching on from lo (which fell short) to top
+        best = run(top)
+        if best[2] < goal:
+            return best
+        lo_, hi = lo, top
+    else:
+        best = run(0.0)
+        lo_, hi = (-2.0, 0.0) if best[2] > goal else (0.0, 1.0)
+        if best[2] < goal:
+            # each stage only when the one before can't reach the number
+            for k0, k1 in ((1.0, 2.0), (2.0, top)):
+                got = run(k0)
+                if got[2] >= goal:
+                    if abs(got[2] - goal) < abs(best[2] - goal):
+                        best = got
+                    break
+                lo_, hi, best = k0, k1, got
+            else:
+                got = run(top)
+                if abs(got[2] - goal) < abs(best[2] - goal):
+                    best = got
+                if got[2] < goal:
+                    return best
     for _ in range(8):
         if abs(best[2] - goal) <= 0.25:
             break
-        mid = (lo + hi) / 2
+        mid = (lo_ + hi) / 2
         got = run(mid)
         if abs(got[2] - goal) < abs(best[2] - goal):
             best = got
-        lo, hi = (mid, hi) if got[2] < goal else (lo, mid)
-    s, notes, est = best
-    if ease and est < goal - 0.5 and (spec.run_breaks > 0 or spec.recovery > 0):
-        # pauses cost steps: rather than miss the difficulty asked for, ease
-        # the breathing room until it's reachable
-        import contextlib, io
-        for k in (0.5,):                # never all the way off: the pauses are the groove
-            calm = dataclasses.replace(spec, run_breaks=spec.run_breaks * k, recovery=spec.recovery * k)
-            rng.setstate(state)
-            with contextlib.redirect_stdout(io.StringIO()):
-                s2, n2 = aim_for_meter(a, calm, repeats, rng, ease=False)
-            e2 = estimate_meter(n2, a.spb)
-            if abs(e2 - goal) < abs(est - goal):
-                s, notes, est = s2, n2, e2
-            if abs(est - goal) < 0.5:
-                print(f"  {spec.name}: less breathing room ({round(100 * k)}%) to reach meter {goal:g}")
-                break
-    if abs(est - goal) > 0.75:
-        tip = " (Breathing room further left gets closer)" if s.run_breaks > 0 or s.recovery > 0 else ""
-        print(f"  {spec.name}: couldn't reach meter {goal:g} on this song (closest {est:.1f}){tip}")
-    return s, notes
+        lo_, hi = (mid, hi) if got[2] < goal else (lo_, mid)
+    return best
 
 
 KEEP_8THS = 0.4     # share of the harder chart's 8ths an easier one keeps (at half_beats 0.3)
