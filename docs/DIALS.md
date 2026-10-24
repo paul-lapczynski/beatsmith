@@ -1,12 +1,12 @@
 # What the controls do
 
-stepgen has one overall control (**Groove**), seven **Feel** sliders, a **difficulty number** per chart, two ways to change where steps come from (**Arrows follow** and **AI assist**) and an **Advanced** table with every setting. This page shows what each one does to a chart: the same 4 bars made at 25%, 50% and 75% (Groove off/25/50/75, difficulty 3/5/7/9), plus what the dial test measured across whole songs.
+stepgen has one overall control (**Groove**), seven **Feel** sliders, a **difficulty number** per chart, two ways to change where steps come from (**Arrows follow** and **AI assist**) and an **Advanced** table with every setting. This page shows what each one does to a chart: 4 bars made at 25%, 50% and 75% (Groove off/25/50/75, difficulty 3/5/7/9), plus what the dial test measured across whole songs. Each picture shows the 4 bars where its control changes the chart the same way it does over the whole song, and the numbers under each column are for the whole chart.
 
 Try them live: **[preview.html](preview.html)** has a slider per control, the 4 bars next to the default, and the song with a tick on every step.
 
 ![Note colours](img/legend.svg)
 
-The pictures are the Hard chart of *Stepgen Demo* (examples/Stepgen Demo, a track synthesized for these docs) with the konami profile, seed 1 and the app's default difficulty targets (Easy 3, Medium 6, Hard 8), with everything else at its default. Each column's header gives the whole chart's rating, step count, jumps and freezes.
+The pictures are the Medium chart of *Stepgen Demo* (examples/Stepgen Demo, a track synthesized for these docs; the difficulty picture uses Hard) with the konami profile, seed 1 and the app's default difficulty targets (Easy 3, Medium 6, Hard 8), with everything else at its default. Each column's header gives the whole chart's rating, step count, jumps and freezes.
 
 ## At a glance
 
