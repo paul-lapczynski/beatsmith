@@ -171,7 +171,7 @@ rhythm_repeat, arrow_repeat, intensity_variation, jump_clusters, jump_holds,
 flow_runs, phrase_shape, rest_bars, beat_backbone, crescendo and target_meter. Needs Python 3.11+.
 
 A few settings are **retired**: the dial test (`dialtest/REPORT.md`) found no
-measurable effect from jacks, jack_max, flow, hold_complexity,
+measurable effect from jack_max, flow, hold_complexity,
 hold_free_foot, intensity_variation, max_run16, max_nps or meter_min/max.
 Profiles that set them still load and use them as written, but no slider
 moves them and the app's Advanced tab shows them greyed out. (The difficulty
@@ -189,8 +189,14 @@ the one before can't get there:
 2. **16th streams**, within the 16th allowance Speed sets.
 3. **Speed**: 8th-note runs, then quarter-beat bursts.
 4. **Breathing room** eased to half.
-5. For 9s and 10s: **more and longer 16th streams** than Konami's charts
-   have, past Speed's allowance.
+5. For 9s and 10s only: **longer 16th streams and more 8ths**, past
+   Speed's allowance. 16ths still stop at the share Konami's own 9s and 10s
+   have (16% of steps at 9, 20% at 10).
+
+With a target, off-beat 8ths are kept to a share Speed sets (15% of steps
+plus half of `half_beats`; the weakest extra ones go), so Speed still
+orders how busy a chart is even when the target supplies the step count.
+The dial raises that share itself only in the Speed stage.
 Whatever the target changed is recorded per chart: in `stepgen.json`
 (`made_with`), the stats file's "Made with" section, and the app's Advanced
 tab ("made" columns), e.g. "Speed raised (8ths 0.30 → 0.65) to get to
@@ -216,9 +222,9 @@ toward one end. 0.5 changes nothing.
 | `energy` | flat | dramatic | energy_follow, crescendo, phrase_shape, rest_bars |
 | `jumps` | none | lots | jump, jump_clusters, jump_holds |
 | `speed` | on the beat, no 16ths | busy, double the usual 16ths | half_beats, quarter_beats, sixteenths, flow_spice, beat_backbone |
-| `groove` | anything goes | made to groove | rhythm_repeat, beat_backbone, energy_follow, phrase_shape, run_breaks, recovery, stomps, rhythm_lock, groove_tries |
+| `groove` | anything goes | made to groove | rhythm_repeat, beat_backbone, jacks, energy_follow, phrase_shape, run_breaks, recovery, stomps, rhythm_lock, groove_tries |
 | `breathing` | nonstop runs | more pauses | run_breaks, recovery, stomps (at most 0.4); no effect on Easy, which has no runs |
-| `footwork` | simple | technical | flow_runs, side_to_side |
+| `footwork` | simple | technical | flow_runs, side_to_side, jacks |
 | `holds` | none | lots | hold_rate |
 | `repetition` | always fresh | choruses identical | rhythm_repeat, arrow_repeat |
 

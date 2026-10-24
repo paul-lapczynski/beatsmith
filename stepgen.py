@@ -545,7 +545,7 @@ MAX_STOMPS = 0.4
 # for. Profiles that set them still load and are used as written, but no
 # slider moves them and the app shows them as retired. max_nps is also
 # set by the difficulty target, which turns it as part of density.
-DEPRECATED = {"jacks", "jack_max", "flow", "hold_complexity", "hold_free_foot",
+DEPRECATED = {"jack_max", "flow", "hold_complexity", "hold_free_foot",
               "intensity_variation", "max_run16", "max_nps", "meter_min", "meter_max"}
 
 # Easy mode: a few plain sliders, each 0..1, where 0.5 leaves the profile as
@@ -557,7 +557,7 @@ EASY_SLIDERS = {
     # groove is the overall one: it goes first, so the sliders below still
     # have the last word on their own settings
     "groove":     [("rhythm_repeat", 0.5, 0.97), ("beat_backbone", 0.0, 0.8),
-                   ("energy_follow", 0.2, 1.0), ("phrase_shape", 0.0, 0.8),
+                   ("jacks", 0.6, 0.0), ("energy_follow", 0.2, 1.0), ("phrase_shape", 0.0, 0.8),
                    ("run_breaks", 0.0, 0.9), ("recovery", 0.0, 0.9), ("stomps", 0.0, MAX_STOMPS),
                    ("rhythm_lock", 0.0, 0.9), ("groove_tries", 1, 4)],
     "energy":     [("energy_follow", 0.0, 1.0), ("crescendo", 0.0, 1.0),
@@ -566,7 +566,7 @@ EASY_SLIDERS = {
     "breathing":  [("run_breaks", 0.0, 1.0), ("recovery", 0.0, 1.0), ("stomps", 0.0, MAX_STOMPS)],
     "speed":      [("half_beats", 0.0, 1.0), ("quarter_beats", 0.0, 0.6), ("sixteenths", 0.0, 2.0),
                    ("flow_spice", 0.0, 0.6), ("beat_backbone", 1.0, 0.0)],
-    "footwork":   [("flow_runs", 0.0, 1.0), ("side_to_side", 1.0, 0.0)],
+    "footwork":   [("flow_runs", 0.0, 1.0), ("side_to_side", 1.0, 0.0), ("jacks", 0.6, 0.0)],
     "holds":      [("hold_rate", 0.0, 0.4)],
     "repetition": [("rhythm_repeat", 0.0, 1.0), ("arrow_repeat", 0.0, 1.0)],
 }
@@ -832,6 +832,36 @@ def phrase_weights(a: Analysis, spec: DiffSpec, bars: list[int]) -> np.ndarray:
     return w
 
 
+EIGHTHS_BASE = 0.15          # with a target: off-beat 8ths at most this share of steps,
+EIGHTHS_PER_HALF_BEAT = 0.5  # plus this much per unit of half_beats (Speed)
+
+
+def cap_eighths(notes: list[Note], spec: DiffSpec) -> list[Note]:
+    """With a target, keep off-beat 8ths to the share Speed asks for: the
+    weakest extra ones go (holds and jumps stay), so the dial reaches the
+    number with what Speed allows before it raises Speed itself."""
+    if spec.target_meter <= 0:
+        return notes
+    share = EIGHTHS_BASE + EIGHTHS_PER_HALF_BEAT * spec.half_beats
+    off = [n for n in notes if n.row % ROWS_PER_BEAT == 2 and not n.hold_rows and len(n.panels) < 2]
+    n8 = sum(n.row % ROWS_PER_BEAT == 2 for n in notes)
+    keep = int(share * (len(notes) - n8) / max(1e-6, 1 - share))     # share of what's left after
+    extra = n8 - keep
+    if extra <= 0 or share >= 1:
+        return notes
+    drop = set(map(id, sorted(off, key=lambda n: n.strength + n.kick)[:extra]))
+    return [n for n in notes if id(n) not in drop]
+
+
+def eighths_cap(spec: DiffSpec, steps: int) -> int:
+    """Most off-beat 8ths a chart of `steps` steps may have: with a target
+    the share Speed asks for, so the target's extra steps don't all become
+    8ths; without one, no limit."""
+    if spec.target_meter <= 0:
+        return steps
+    return int((EIGHTHS_BASE + EIGHTHS_PER_HALF_BEAT * spec.half_beats) * steps)
+
+
 def place_notes(a: Analysis, spec: DiffSpec, rng: random.Random) -> list[Note]:
     spb = a.spb
     row_dt = spb / ROWS_PER_BEAT
@@ -881,6 +911,7 @@ def place_notes(a: Analysis, spec: DiffSpec, rng: random.Random) -> list[Note]:
     budget = w / w.sum() * target
     taken: dict[int, tuple] = {}
     carry = 0.0
+
     for m, bud in zip(ms, budget):
         want = bud + carry
         got = 0
@@ -1026,16 +1057,21 @@ def limit_sixteenths(a: Analysis, notes: list[Note], spec: DiffSpec) -> list[Not
     row_dt = a.spb / ROWS_PER_BEAT
     taken = {n.row for n in notes}
     drop = set()
+    n8 = sum(n.row % ROWS_PER_BEAT == 2 for n in notes)
+    max8 = eighths_cap(spec, len(notes))
     for n in sorted(odd, key=lambda n: n.strength)[:len(odd) - allowed]:
         if n.hold_rows:
             continue
         free = [r for r in (n.row - 1, n.row + 1) if r not in taken and r - 1 not in taken - {n.row}
                 and r + 1 not in taken - {n.row}]
+        if n8 >= max8:
+            free = [r for r in free if r % ROWS_PER_BEAT != 2]   # Speed's 8th share is full
         taken.discard(n.row)
         if free:
             n.row = min(free, key=lambda r: -a.peak(a.hits, a.t0 + r * row_dt))
             n.time = a.t0 + n.row * row_dt
             taken.add(n.row)
+            n8 += n.row % ROWS_PER_BEAT == 2
         else:
             drop.add(id(n))
     return [n for n in notes if id(n) not in drop]
@@ -1891,7 +1927,8 @@ def meter_for(notes: list[Note], a: Analysis, spec: DiffSpec) -> int:
 
 
 KONAMI_K = 3.0   # the dial as far as Konami's own charts go
-TOP_K = 4.5      # past that, for 9s and 10s: denser 16th streams than Konami's
+TOP_K = 4.5      # past that, for 9s and 10s: longer 16th streams, more 8ths
+PAST_KONAMI_16THS = 1.0    # ... but no more 16ths than Konami's own 9s and 10s (16% at 9, 20% at 10)
 
 
 def with_intensity(spec: DiffSpec, k: float, nps_8ths: float | None = None) -> DiffSpec:
@@ -1907,8 +1944,8 @@ def with_intensity(spec: DiffSpec, k: float, nps_8ths: float | None = None) -> D
              at 1) plus up to 60% more.
        2..3  density can't do more: Speed's settings rise, 8th runs first,
              then quarter-beat bursts.
-       3..TOP_K  for 9s and 10s: more and longer 16th streams than Konami's
-             usual, past Speed's allowance.
+       3..TOP_K  for 9s and 10s: longer 16th streams and more 8ths, past
+             Speed's allowance (16ths still at most Konami's share).
 
     The profile's own feel (flow, repeats, the arc) is left alone."""
     c = lambda x: float(np.clip(x, 0.0, 1.0))
@@ -1931,13 +1968,14 @@ def with_intensity(spec: DiffSpec, k: float, nps_8ths: float | None = None) -> D
         d.max_nps = nps_8ths * (1 + 0.6 * t)
     if k > 2.0:                         # Speed's settings, only past what density reaches
         ks = min(k, KONAMI_K) - 2.0
-        d.half_beats = c(spec.half_beats + 0.35 * ks)
+        # 8ths keep rising past Konami too, so 9s and 10s aren't all 16ths
+        d.half_beats = c(spec.half_beats + 0.6 * (k - 2.0))
         if ks > 0.6:                    # quarter-beat bursts on top of the 8ths
             d.quarter_beats = c(spec.quarter_beats + 0.5 * (ks - 0.6))
             d.flow_spice = c(spec.flow_spice + 0.3 * (ks - 0.6))
     if k > KONAMI_K:                    # past Konami-typical: more and longer 16th runs
         x = k - KONAMI_K
-        d.sixteenths = max(spec.sixteenths, 1.0) * (1 + x)
+        d.sixteenths = max(spec.sixteenths, 1.0) * min(1 + x, PAST_KONAMI_16THS)
         d.max_run16 = spec.max_run16 + int(round(6 * x))
     return d
 
@@ -2112,6 +2150,7 @@ def to_ogg(src: Path, dst: Path) -> None:
 
 def make_chart(a: Analysis, spec: DiffSpec, repeats, rng: random.Random) -> list[Note]:
     notes = refill(a, choose_holds(a, place_notes(a, spec, rng), spec), spec, rng)
+    notes = cap_eighths(notes, spec)
     notes = sorted(limit_sixteenths(a, notes, spec), key=lambda n: n.row)
     notes = settle_rhythm(a, notes, spec, rng)
     notes = breathe(a, notes, spec, rng)
@@ -2268,13 +2307,13 @@ def aim_for_meter(a: Analysis, spec: DiffSpec, repeats, rng: random.Random):
         if abs(got[2] - goal) < abs(est - goal):
             s, notes, est = got
             print(f"  {spec.name}: less breathing room (50%) to reach meter {goal:g}")
-    if est < goal - 0.5:
-        # still short: past what Konami's charts do, if it really gets closer
+    if est < goal - 0.5 and goal >= 9:
+        # still short of a 9 or 10: past what Konami's charts do, if it really gets closer
         base = dataclasses.replace(spec, run_breaks=s.run_breaks, recovery=s.recovery)
         got = _dial(a, base, repeats, rng, state, TOP_K, lo=KONAMI_K)
         if abs(got[2] - goal) < abs(est - goal) - 0.25:
             s, notes, est = got
-            print(f"  {spec.name}: denser 16th streams than Konami's to reach meter {goal:g}")
+            print(f"  {spec.name}: longer 16th streams than Konami's to reach meter {goal:g}")
     if abs(est - goal) > 0.75:
         print(f"  {spec.name}: couldn't reach meter {goal:g} on this song (closest {est:.1f})")
     return s, notes
