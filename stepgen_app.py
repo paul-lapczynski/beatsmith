@@ -1422,13 +1422,53 @@ class Window(QMainWindow):
         return [self.jobs[r] for r in sorted({i.row() for i in self.table.selectedIndexes()})]
 
     def remove_selected(self):
-        for job in reversed(self.selected_jobs()):
-            if job in self.running:
+        jobs = [j for j in self.selected_jobs() if j not in self.running]
+        # songs already made have a folder in the output folder, which "Show songs
+        # already made" would list again: offer to put it in the Recycle Bin too
+        made = [j for j in jobs if j.sm and j.sm.is_file()]
+        trash = False
+        if made:
+            box = QMessageBox(self)
+            box.setWindowTitle("Remove")
+            names = ", ".join(j.title for j in made[:3]) + (f" and {len(made) - 3} more" if len(made) > 3 else "")
+            box.setText(f"{names} {'has' if len(made) == 1 else 'have'} already been made.\n\n"
+                        "Also move the song's folder in the output folder to the Recycle Bin? "
+                        "Otherwise it's only taken off this list, and shows up again with "
+                        "\"Show songs already made\". Copies in StepMania's Songs folder aren't touched.")
+            both = box.addButton("Remove and move to Recycle Bin", QMessageBox.DestructiveRole)
+            box.addButton("Only take off the list", QMessageBox.AcceptRole)
+            box.addButton(QMessageBox.Cancel)
+            box.exec()
+            if box.clickedButton() is box.button(QMessageBox.Cancel):
+                return
+            trash = box.clickedButton() is both
+        failed = []
+        for job in reversed(jobs):
+            if trash and job in made and not self._trash_song(job):
+                failed.append(job.title)
                 continue
             r = self._row(job)
             self.jobs.pop(r)
             self.table.removeRow(r)
         self._progress_max()
+        if failed:
+            QMessageBox.warning(self, "Remove", "Couldn't move these to the Recycle Bin (open in the "
+                                "Edit tab, or a file in use?): " + ", ".join(failed))
+
+    def _trash_song(self, job: Job) -> bool:
+        """Move a made song's folder (and its "(no AI)" twin) to the Recycle Bin.
+        Not while it's open in the editor."""
+        from PySide6.QtCore import QFile
+        outer = outer_of(job.sm)
+        open_sm = getattr(self.editor, "sm", None)
+        if open_sm is not None and outer.resolve() in open_sm.path.resolve().parents:
+            return False
+        ok = True
+        for d in (outer, outer.parent / f"{outer.name} (no AI)"):
+            if d.is_dir():
+                res = QFile.moveToTrash(str(d))
+                ok = (res[0] if isinstance(res, tuple) else bool(res)) and ok
+        return ok
 
     def clear_finished(self):
         for job in reversed(list(self.jobs)):
