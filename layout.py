@@ -1,15 +1,23 @@
 """Where a song's files go.
 
-    <output folder>/<title>/                 stats, settings, stems, compare charts...
-    <output folder>/<title>/<title>/         just <title>.sm and the song: copy this
-                                             folder into StepMania's Songs/<group>/
+    <output folder>/<title>/                 just <title>.sm, the song and its pictures:
+                                             the output folder can be StepMania's
+                                             Songs/<group>/ itself
+    <app data>/songs/<output folder>-<id>/<title>/
+                                             stats, settings, stems, compare charts...
 
-Songs made before this layout have everything in <output folder>/<title>/;
-the helpers below find their files too.
+Songs made before this have the rest in <output folder>/<title>/ and the
+StepMania folder inside it (<output folder>/<title>/<title>/), or, older
+still, everything in <output folder>/<title>/. The helpers below find
+their files too, and migrate() moves such a song to this layout.
 """
 from __future__ import annotations
 
+import hashlib
+import os
 import re
+import shutil
+import sys
 import unicodedata
 from pathlib import Path
 
@@ -61,16 +69,60 @@ def file_name(title: str, artist: str = "") -> str:
     return (f"{a} - {t}" if a and t else t or a) or "song"
 
 
+def data_dir() -> Path:
+    """The app's own data folder, the one the app's QStandardPaths
+    AppDataLocation gives (STEPGEN_DATA overrides it)."""
+    if os.environ.get("STEPGEN_DATA"):
+        return Path(os.environ["STEPGEN_DATA"])
+    if sys.platform == "win32":
+        base = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+    return base / "stepgen" / "stepgen"
+
+
+def work_root(out: Path) -> Path:
+    """Where the stats, settings and the rest of an output folder's songs
+    go: one folder per output folder, named after it so it's easy to find."""
+    full = os.path.normcase(os.path.abspath(out))
+    tag = hashlib.sha1(full.encode("utf-8")).hexdigest()[:8]
+    return data_dir() / "songs" / f"{_plain(Path(os.path.abspath(out)).name) or 'songs'}-{tag}"
+
+
 def song_dirs(out: Path, title: str) -> tuple[Path, Path]:
-    """(outer folder for everything else, inner StepMania song folder)."""
-    outer = out / title
-    return outer, outer / title
+    """(folder for everything else, StepMania song folder)."""
+    return work_root(out) / title, out / title
+
+
+def _old_nested(sm: Path) -> bool:
+    """<output folder>/<title>/<title>/<title>.sm, with the rest one level up
+    (an output folder named like one of its songs would read as this too)."""
+    return sm.parent.name == sm.parent.parent.name
+
+
+def out_of(sm: Path) -> Path:
+    """The output folder a chart was made in."""
+    return sm.parent.parent.parent if _old_nested(sm) else sm.parent.parent
 
 
 def outer_of(sm: Path) -> Path:
     """The folder that holds a chart's stats, settings and the rest."""
-    inner = sm.parent
-    return inner.parent if inner.name == inner.parent.name else inner
+    if (sm.parent / f"{sm.stem}.stepgen.json").is_file():
+        return sm.parent                     # the oldest layout: all in one folder
+    if _old_nested(sm):
+        return sm.parent.parent
+    return song_dirs(sm.parent.parent, sm.parent.name)[0]
+
+
+def song_folders(sm: Path) -> list[Path]:
+    """Every folder that belongs to a made song: its StepMania folder and
+    the one with the rest (the same folder in the old layouts)."""
+    outer = outer_of(sm)
+    if outer in (sm.parent, sm.parent.parent):
+        return [outer]
+    return [sm.parent, outer]
 
 
 def side(sm: Path, suffix: str) -> Path:
@@ -79,7 +131,47 @@ def side(sm: Path, suffix: str) -> Path:
     return outer_of(sm) / f"{sm.stem}{suffix}"
 
 
-def find_sm(outer: Path, title: str) -> Path:
-    """The chart of a song made in `outer`, in either layout."""
-    new = outer / title / f"{title}.sm"
-    return new if new.is_file() or not (outer / f"{title}.sm").is_file() else outer / f"{title}.sm"
+def find_sm(folder: Path, title: str) -> Path:
+    """The chart of the song in <output folder>/<title>/, in any layout."""
+    nested = folder / title / f"{title}.sm"
+    return nested if nested.is_file() else folder / f"{title}.sm"
+
+
+def migrate(out: Path, title: str, log=print) -> None:
+    """Move a song made in an older layout to this one: its StepMania
+    files to <output folder>/<title>/ and the rest to the app's data
+    folder. Nothing happens to a song already in this layout."""
+    folder = out / title
+    inner = folder / title
+    work = song_dirs(out, title)[0]
+    if (inner / f"{title}.sm").is_file():
+        keep = {inner.name}                  # the rest one level up, the song in <title>/<title>/
+    elif (folder / f"{title}.stepgen.json").is_file():
+        keep = {f"{title}.sm"} | {v for v in _file_tags(folder / f"{title}.sm").values() if v}
+        inner = None                         # the oldest layout: all in one folder
+    else:
+        return
+    work.mkdir(parents=True, exist_ok=True)
+    for f in list(folder.iterdir()):
+        if f.name not in keep:
+            _move(f, work / f.name)
+    if inner is not None:                    # bring the StepMania folder's files up a level
+        for f in list(inner.iterdir()):
+            _move(f, folder / f.name)
+        inner.rmdir()
+    log(f"  moved {title} to the new layout: stats and settings are in {work}")
+
+
+def _move(f: Path, dest: Path) -> None:
+    if dest.is_dir():
+        shutil.rmtree(dest)
+    elif dest.exists():
+        dest.unlink()
+    shutil.move(str(f), str(dest))
+
+
+def _file_tags(sm: Path) -> dict[str, str]:
+    text = sm.read_text(encoding="utf-8", errors="replace")
+    head = text[:text.find("#NOTES:")] if "#NOTES:" in text else text
+    return {m.group(1): m.group(2).strip()
+            for m in re.finditer(r"#(MUSIC|BANNER|BACKGROUND|JACKET|CDTITLE):([^;]*);", head)}
