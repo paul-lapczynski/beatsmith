@@ -50,7 +50,7 @@ from PySide6.QtWidgets import (
 HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 sys.path.insert(0, str(HERE))
 import stepgen  # noqa: E402
-from layout import file_name, find_sm, outer_of, side, song_dirs  # noqa: E402
+from layout import file_name, find_sm, out_of, side, song_dirs, song_folders, work_root  # noqa: E402
 import artwork  # noqa: E402
 
 APP_NAME = "stepgen"
@@ -397,9 +397,11 @@ class Window(QMainWindow):
         row = QHBoxLayout()
         self.out_edit = QLineEdit()
         self.out_edit.setPlaceholderText("Pick a folder")
-        self.out_edit.setToolTip("Each song gets a folder in here, and inside it a folder with just "
-                                 "the chart and the song: copy that one into StepMania's Songs/<group>/. "
-                                 "A song folder that already has charts stepgen didn't make is never touched.")
+        self.out_edit.setToolTip("Each song gets a folder in here with just the chart, the song and its "
+                                 "pictures, so this can be a group folder in StepMania's Songs folder "
+                                 "(e.g. Songs/AATesting). Stats, settings and the rest go in stepgen's own "
+                                 "data folder. A song folder that already has charts stepgen didn't make is "
+                                 "never touched.")
         b = QPushButton("Browse…")
         b.clicked.connect(self.pick_out_dir)
         row.addWidget(self.out_edit)
@@ -1357,10 +1359,14 @@ class Window(QMainWindow):
             return
         queued = {out_title(j).lower() for j in self.jobs}
         found = 0
-        for info in sorted(Path(text).glob("*/*.stepgen.json"), key=lambda f: f.parent.name.lower()):
-            folder, title = info.parent, info.name[:-len(".stepgen.json")]
-            sm = find_sm(folder, title)
-            if title.lower() in queued or not sm.is_file():
+        out = Path(text)
+        # the songs' records: in the app's data folder, or in the output folder for older songs
+        titles = {f.parent.name for f in list(work_root(out).glob("*/*.stepgen.json"))
+                  + list(out.glob("*/*.stepgen.json"))}
+        for title in sorted(titles, key=str.lower):
+            sm = find_sm(out / title, title)
+            info = side(sm, ".stepgen.json")
+            if title.lower() in queued or not sm.is_file() or not info.is_file():
                 continue                   # already a row in the queue, or not finished
             try:
                 made = json.loads(info.read_text(encoding="utf-8"))
@@ -1370,7 +1376,7 @@ class Window(QMainWindow):
             # the title it was made with (the song file itself may be gone)
             job = Job(src, made.get("title") or title, made.get("artist", ""))
             job.status, job.sm, job.meters = EARLIER, sm, read_meters(sm)
-            app_json = folder / f"{title}.app.json"
+            app_json = side(sm, ".app.json")
             if app_json.is_file():
                 try:
                     job.settings = json.loads(app_json.read_text())
@@ -1459,12 +1465,16 @@ class Window(QMainWindow):
         """Move a made song's folder (and its "(no AI)" twin) to the Recycle Bin.
         Not while it's open in the editor."""
         from PySide6.QtCore import QFile
-        outer = outer_of(job.sm)
+        dirs = song_folders(job.sm)
+        twin = f"{job.sm.stem} (no AI)"
+        twin_sm = find_sm(out_of(job.sm) / twin, twin)
+        if twin_sm.is_file():
+            dirs += song_folders(twin_sm)
         open_sm = getattr(self.editor, "sm", None)
-        if open_sm is not None and outer.resolve() in open_sm.path.resolve().parents:
+        if open_sm is not None and any(d.resolve() in open_sm.path.resolve().parents for d in dirs):
             return False
         ok = True
-        for d in (outer, outer.parent / f"{outer.name} (no AI)"):
+        for d in dirs:
             if d.is_dir():
                 res = QFile.moveToTrash(str(d))
                 ok = (res[0] if isinstance(res, tuple) else bool(res)) and ok
@@ -1667,7 +1677,7 @@ class Window(QMainWindow):
     def open_selected(self):
         jobs = self.selected_jobs()
         if jobs and jobs[0].sm:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(outer_of(jobs[0].sm))))
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(jobs[0].sm.parent)))
 
     # ------------------------------------------------------------------ run
     def out_dir(self) -> Path | None:
@@ -1710,10 +1720,11 @@ class Window(QMainWindow):
                 job.log = f"{folder} has charts stepgen didn't make, so it was left alone."
                 self._set_status(job, FAILED, "#c0392b")
                 continue
-            if self.skip_done.isChecked() and not job.force and (folder / f"{title}.stepgen.json").is_file():
+            if (self.skip_done.isChecked() and not job.force
+                    and side(find_sm(folder, title), ".stepgen.json").is_file()):
                 job.sm = find_sm(folder, title)
                 job.meters = read_meters(job.sm)
-                app_json = folder / f"{title}.app.json"
+                app_json = side(job.sm, ".app.json")
                 if app_json.is_file():               # the settings it was made with
                     try:
                         job.settings = json.loads(app_json.read_text())

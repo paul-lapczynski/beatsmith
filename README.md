@@ -19,14 +19,18 @@ python3 -m pip install -r requirements.txt     # librosa, soundfile, numpy
 python3 stepgen.py "My Song.mp3" --artist "Someone" --out songs/
 ```
 
-This makes `songs/My Song/My Song/` holding just `My Song.sm` and the audio
-converted to `My Song.ogg` (`--keep-format` copies it as-is instead). Copy
-that inner folder into StepMania's `Songs/<any group name>/` folder (works in
+This makes `songs/My Song/` holding just `My Song.sm`, the audio converted
+to `My Song.ogg` (`--keep-format` copies it as-is instead) and the song's
+pictures, so `--out` can be a group folder in StepMania's `Songs` folder
+itself, e.g. `--out "C:/Games/StepMania 5/Songs/AATesting"` (works in
 StepMania 5, ITGmania and OutFox). Everything else stepgen keeps about the
 song (stats, the settings it was made with, stems, compare charts, the
-editor's backup) sits one level up in `songs/My Song/`. Songs made with older
-versions, with everything in one folder, still open and are tidied up when
-made again. Several files at once: `python3 stepgen.py *.mp3`.
+editor's backup) goes in its own data folder, under
+`songs/<output folder name>-<id>/My Song/` (on Windows in
+`%APPDATA%\stepgen\stepgen`; run from source, it's `song-data/` in the source folder). Songs made with older versions, with the
+StepMania folder inside the song's folder or everything in one folder,
+still open, and are moved to this layout when made again. Several files at
+once: `python3 stepgen.py *.mp3`.
 
 Folder and file names are always plain letters, because StepMania on Windows
 skips a song whose folder or files have Korean, Japanese and other letters in
@@ -56,9 +60,10 @@ MP3, OGG, WAV and FLAC load directly; anything else goes through ffmpeg.
 - **Queue:** add songs, add a whole folder (subfolders too) or drop files and
   folders on the window. Title and artist come from the file's tags and can be
   edited, as can the BPM ("auto" detects it).
-- **Output folder:** any folder you pick (not StepMania's own Songs folder).
-  Each song gets a folder in it, and inside that a folder with just the
-  chart and the song, ready to copy into StepMania.
+- **Output folder:** any folder you pick, such as a group folder in
+  StepMania's Songs folder (`Songs\AATesting`). Each song gets a folder in
+  it with just the chart, the song and its pictures, ready to play; the
+  stats, settings and the rest go in stepgen's own data folder.
   A song folder that already has charts stepgen didn't make is never touched,
   and songs already done are skipped unless you untick that.
 - **Easy tab:** a difficulty number per chart (target mode) and the six feel
@@ -77,7 +82,7 @@ MP3, OGG, WAV and FLAC load directly; anything else goes through ffmpeg.
 - Several songs run at once (Options tab), with a status per song, a
   progress bar and Cancel. Click a finished song for its stats and log;
   the stats start with the settings it was made with (also kept in the
-  song folder as `<title>.app.json`, so a skipped song shows them too).
+  data folder as `<title>.app.json`, so a skipped song shows them too).
 - **Show songs already made** (above the queue) lists the songs stepgen
   has already made in the output folder as "Made earlier" rows, with
   their meters, settings and stats. Select one to open it in the editor,
@@ -327,7 +332,7 @@ Right as the tune rises and back toward Left as it falls.
   stats file and printed at the end of each run. Names are a best guess
   from loudness and repeats.
 - When a chart follows anywhere, stepgen also writes its beat-only version
-  to a `.compare` folder inside the song folder (ignored by StepMania), for
+  to a `.compare` folder in stepgen's data folder for the song, for
   the editor's **Compare with beat only**.
 - `--stems` separates the vocals first with Demucs, so the arrows follow
   the singing rather than everything melodic, and only while someone is
@@ -472,7 +477,8 @@ like the earlier one's. The run prints which measures repeat.
 
 ## Stats dump
 
-Every run writes `<title>.stats.md` next to the `.sm`: song analysis, the
+Every run writes `<title>.stats.md` in stepgen's data folder for the song
+(shown in the app's Chart stats tab): song analysis, the
 repeated sections, a stats table per difficulty, the StepMania groove radar
 (stream, voltage, air, freeze, chaos, same formulas as the game) and notes per
 measure as a Mermaid line chart plus a text heat strip. The radar values are

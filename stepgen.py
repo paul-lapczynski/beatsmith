@@ -35,7 +35,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # chartstats.py
-from layout import file_name, song_dirs
+from layout import file_name, migrate, song_dirs
 import librosa
 import soundfile as sf
 
@@ -2582,10 +2582,13 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
              art_from: str | None = None) -> Path:
     title = title or src.stem
     name = file_name(title, artist)    # plain ASCII for the folder and files; the .sm keeps `title`
-    # the StepMania song folder holds only the chart and the song; stats,
-    # settings, stems and the rest sit one level up (layout.py)
+    # the StepMania song folder holds only the chart, the song and its
+    # pictures; stats, settings, stems and the rest go in the app's data
+    # folder (layout.py)
+    migrate(out_dir, name)
     folder, song = song_dirs(out_dir, name)
     song.mkdir(parents=True, exist_ok=True)
+    folder.mkdir(parents=True, exist_ok=True)
     # the chart is timed against the exact file StepMania will play
     keep_format = keep_format and not shorten        # a shortened song is a new file
     music = src.name if keep_format and src.name.isascii() else f"{name}{src.suffix if keep_format else '.ogg'}"
@@ -2768,13 +2771,18 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
     compare = folder / COMPARE_DIR / f"{name}.sm"
     if beat_only:
         compare.parent.mkdir(exist_ok=True)
-        write_sm(compare, title, artist, f"../{name}/{music}", a, beat_only)
+        try:
+            where = Path(os.path.relpath(song / music, compare.parent)).as_posix()
+        except ValueError:                       # on another drive
+            where = (song / music).as_posix()
+        write_sm(compare, title, artist, where, a, beat_only)
     elif compare.is_file():
         compare.unlink()
     if no_ai:
         # temporary: the whole song again without AI assist, as its own song
         # so both can be played and compared in StepMania
         t0 = f"{title} (no AI)"
+        migrate(out_dir, file_name(t0, artist))
         _, song0 = song_dirs(out_dir, file_name(t0, artist))
         song0.mkdir(parents=True, exist_ok=True)
         if not (song0 / music).is_file() or (song0 / music).stat().st_size != (song / music).stat().st_size:

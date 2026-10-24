@@ -41,7 +41,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
-from layout import find_sm, outer_of, side
+from layout import find_sm, out_of, outer_of, side
 from PySide6.QtCore import QPointF, QRectF, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import (
@@ -1405,7 +1405,7 @@ class EditorWidget(QWidget):
         self.twin_sm, self.twin_name = None, ""
         stem, tag = path.stem, " (no AI)"
         twin, self.twin_name = (stem[:-len(tag)], "With AI") if stem.endswith(tag) else (stem + tag, "No AI")
-        twin_sm = find_sm(outer_of(path).parent / twin, twin)
+        twin_sm = find_sm(out_of(path) / twin, twin)
         try:
             self.twin_sm = SMFile(twin_sm) if twin_sm.is_file() else None
         except Exception:

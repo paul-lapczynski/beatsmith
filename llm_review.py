@@ -42,7 +42,7 @@ import numpy as np
 
 import chartstats as cs
 import stepgen as sg
-from layout import outer_of, side
+from layout import out_of, side
 
 HERE = Path(__file__).resolve().parent
 ARROWS = "LDUR"
@@ -153,7 +153,7 @@ def load_meta(sm: Path) -> tuple[dict, Path]:
     if not meta.get("source") or not Path(meta["source"]).is_file():
         meta["source"] = str(music.resolve())
     if not meta.get("out") or not Path(meta["out"]).is_dir():
-        meta["out"] = str(outer_of(sm.resolve()).parent)
+        meta["out"] = str(out_of(sm.resolve()))
     meta.setdefault("title", sm.stem)
     return meta, music
 
