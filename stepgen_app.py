@@ -1535,8 +1535,7 @@ class Window(QMainWindow):
             self.show_details(job)
 
     def _art_from(self, job: Job) -> str:
-        w = job.art_where
-        return (w.get("from") or "") + (f" ({w['file']})" if w.get("file") else "")
+        return artwork.describe(job.art_where)
 
     def _art_choose(self):
         jobs = [j for j in self.selected_jobs() if j.status != EARLIER]

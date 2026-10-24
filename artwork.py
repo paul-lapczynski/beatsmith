@@ -131,9 +131,53 @@ def _get(url: str, log, accept: str = "application/json") -> bytes | None:
     return None
 
 
-def musicbrainz(title: str, artist: str, log) -> bytes | None:
-    q = f'recording:"{title}" AND artist:"{artist}"'
-    data = _get(f"{MUSICBRAINZ}?{urllib.parse.urlencode({'query': q, 'fmt': 'json', 'limit': 10})}", log)
+def _clean(s: str) -> str:
+    """A title as a search wants it: no "(CAUTION)", "[Official Video]",
+    "feat. X", track numbers or underscores."""
+    s = re.sub(r"\s*[\(\[\{].*?[\)\]\}]", " ", s.replace("_", " "))
+    s = re.sub(r"\s+\b(feat|ft|featuring)\b\.?\s.*$", "", s, flags=re.I)
+    s = re.sub(r"^\s*\d{1,3}\s*[.\-)]?\s+(?=\D)", "", s)         # "01 - ", "07. "
+    return re.sub(r"\s+", " ", s).strip(" -")
+
+
+def guesses(title: str, artist: str) -> list[tuple[str, str]]:
+    """(title, artist) pairs to search for, best first. Without an artist,
+    one is guessed from the name ("Artist - Title", "ARTIST-TITLE"), and
+    last of all the title is searched on its own ("" for the artist)."""
+    t, a = _clean(title), _clean(artist)
+    out = []
+    if a:
+        out.append((t, a))
+    for sep in (r"\s+[-\u2013\u2014]\s+", r"\s*[-\u2013\u2014]\s*"):
+        parts = re.split(sep, t, maxsplit=1)
+        if len(parts) == 2 and all(parts):
+            if not a:
+                out += [(parts[1], parts[0]), (parts[0], parts[1])]    # "Artist - Title", then the other way
+            elif _same(parts[0], a):
+                out.append((parts[1], a))                              # the artist written in the title too
+            break
+    if not a:
+        out.append((t, ""))
+    seen, res = set(), []
+    for g in out:
+        k = (_norm(g[0]), _norm(g[1]))
+        if k[0] and k not in seen:
+            seen.add(k)
+            res.append(g)
+    return res[:4]
+
+
+def _lucene(s: str) -> str:
+    return re.sub(r'[+\-&|!(){}\[\]^"~*?:\\/\']', " ", s).strip()
+
+
+def _exact(a: str, b: str) -> bool:
+    return bool(_norm(a)) and _norm(a) == _norm(b)
+
+
+def musicbrainz(title: str, artist: str, log) -> tuple[bytes, str] | None:
+    q = f"recording:({_lucene(title)})" + (f" AND artist:({_lucene(artist)})" if artist else "")
+    data = _get(f"{MUSICBRAINZ}?{urllib.parse.urlencode({'query': q, 'fmt': 'json', 'limit': 15})}", log)
     try:
         recs = json.loads(data)["recordings"] if data else []
     except (ValueError, KeyError):
@@ -141,51 +185,70 @@ def musicbrainz(title: str, artist: str, log) -> bytes | None:
     groups, releases = [], []
     for rec in recs:
         credit = "".join(c.get("name", "") + c.get("joinphrase", "") for c in rec.get("artist-credit", []))
-        if rec.get("score", 0) < 80 or not _same(rec.get("title", ""), title) or not _same(credit, artist):
+        if artist:
+            ok = rec.get("score", 0) >= 60 and _same(rec.get("title", ""), title) and _same(credit, artist)
+        else:                       # the title alone: only an exact, confident match
+            ok = rec.get("score", 0) >= 95 and _exact(rec.get("title", ""), title)
+        if not ok:
             continue
         for rel in rec.get("releases", []):
             rg = rel.get("release-group", {})
             # the artist's own albums and singles before compilations and live records
             plain = rel.get("status") == "Official" and not rg.get("secondary-types")
             rank = (not plain, rg.get("primary-type") not in ("Album", "Single", "EP"))
+            what = f"{credit} - {rec.get('title', '')}"
             if rg.get("id"):
-                groups.append((rank, rg["id"]))
-            releases.append((rank, rel["id"]))
+                groups.append((rank, rg["id"], what))
+            releases.append((rank, rel["id"], what))
+        if not artist and (groups or releases):
+            break                   # without an artist, only the best match's covers
     for kind, ids in (("release-group", groups), ("release", releases)):
         seen = []
-        for _, i in sorted(ids, key=lambda x: x[0]):
-            if i not in seen:
-                seen.append(i)
-        for i in seen[:3]:
+        for _, i, what in sorted(ids, key=lambda x: x[0]):
+            if i not in [x for x, _ in seen]:
+                seen.append((i, what))
+        for i, what in seen[:3]:
             img = _get(f"{COVER_ART_ARCHIVE}/{kind}/{i}/front-500", log, accept="image/*")
             if img:
-                return img
+                return img, what
     return None
 
 
-def itunes(title: str, artist: str, log) -> bytes | None:
-    data = _get(f"{ITUNES}?{urllib.parse.urlencode({'term': f'{artist} {title}', 'entity': 'song', 'limit': 10})}",
-                log)
+def itunes(title: str, artist: str, log) -> tuple[bytes, str] | None:
+    term = f"{artist} {title}".strip()
+    data = _get(f"{ITUNES}?{urllib.parse.urlencode({'term': term, 'entity': 'song', 'limit': 15})}", log)
     try:
         results = json.loads(data)["results"] if data else []
     except (ValueError, KeyError):
         return None
     for r in results:
         url = r.get("artworkUrl100", "")
-        if url and _same(r.get("trackName", ""), title) and _same(r.get("artistName", ""), artist):
-            return _get(url.replace("100x100bb", "600x600bb"), log, accept="image/*")
+        track, by = r.get("trackName", ""), r.get("artistName", "")
+        ok = (_same(track, title) and _same(by, artist)) if artist else _exact(track, title)
+        if url and ok:
+            img = _get(url.replace("100x100bb", "600x600bb"), log, accept="image/*")
+            if img:
+                return img, f"{by} - {track}"
     return None
 
 
-def online(title: str, artist: str, log=print) -> tuple[bytes, str] | None:
-    if not artist.strip():
-        log("  artwork: not looked up online: the song has no artist to search by")
-        return None
-    for name, fn in (("MusicBrainz / Cover Art Archive", musicbrainz), ("iTunes", itunes)):
-        img = fn(title, artist, log)
-        if img and _size(img)[0] >= MIN_SIZE:
-            return img, name
-    log(f"  artwork: nothing found online for {artist} - {title}")
+def online(title: str, artist: str, log=print) -> tuple[bytes, dict] | None:
+    """Search by title and artist, trying a few readings of the name; the
+    record says which song it matched, to check in the Details tab."""
+    last_mb = 0.0
+    for t, a in guesses(title, artist):
+        log(f"  artwork: searching for {a + ' - ' if a else ''}{t}" + ("" if a else " (title only)"))
+        for name, fn in (("MusicBrainz / Cover Art Archive", musicbrainz), ("iTunes", itunes)):
+            if fn is musicbrainz:   # MusicBrainz allows one request a second
+                time.sleep(max(0.0, 1.1 - (time.monotonic() - last_mb)))
+                last_mb = time.monotonic()
+            found = fn(t, a, log)
+            if found and _size(found[0])[0] >= MIN_SIZE:
+                where = {"from": name, "match": found[1]}
+                if not a:
+                    where["note"] = "matched by title only: check it's the right song"
+                return found[0], where
+    log(f"  artwork: nothing found online for {title}")
     return None
 
 
@@ -286,6 +349,18 @@ def draw(data: bytes, out: dict[str, Path]) -> None:
 KEPT = "already in the song folder"
 
 
+def describe(where: dict) -> str:
+    """Where a picture came from, in words."""
+    out = where.get("from") or "nowhere"
+    if where.get("file"):
+        out += f" ({where['file']})"
+    if where.get("match"):
+        out += f", matched to \u201c{where['match']}\u201d"
+    if where.get("note"):
+        out += f" ({where['note']})"
+    return out
+
+
 def find(src: Path, title: str, artist: str, song: Path | None = None, look_online: bool = False,
          log=print) -> tuple[bytes | None, dict]:
     """The picture for a song and where it came from. With the song folder
@@ -304,7 +379,7 @@ def find(src: Path, title: str, artist: str, song: Path | None = None, look_onli
         print("progress: finding artwork", file=sys.stderr, flush=True)
         found = online(title, artist, log)
         if found:
-            return found[0], {"from": found[1]}
+            return found
     return None, {"from": None}
 
 
@@ -326,7 +401,7 @@ def make(src: Path, song: Path, title: str, artist: str, look_online: bool = Fal
     if data is None:
         return {}, where
     draw(data, {tag: song / n for tag, n in names.items()})
-    log(f"  artwork: from {where['from']}" + (f" ({where['file']})" if where.get("file") else ""))
+    log(f"  artwork: from {describe(where)}")
     return names, where
 
 
