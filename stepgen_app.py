@@ -401,8 +401,10 @@ class Window(QMainWindow):
             gl.addWidget(cb, i, 0)
             gl.addWidget(sb, i, 1)
             gl.setColumnStretch(2, 1)
-        gl.addWidget(QLabel("Unticked: the profile's own settings decide, and the chart "
-                            "gets whatever rating they produce."), 3, 0, 1, 2)
+        unticked = QLabel("Unticked: the profile's own settings decide, and the chart "
+                          "gets whatever rating they produce.")
+        unticked.setWordWrap(True)
+        gl.addWidget(unticked, 3, 0, 1, 3)
         self.backoff = QCheckBox("Cut the easier charts out of the hardest (backoff)")
         self.backoff.setToolTip("Hard is made first; Medium and Easy keep its steps and arrows and "
                                 "only lose the harder ones (16ths, weak off-beats, extra jumps), so "
@@ -443,9 +445,8 @@ class Window(QMainWindow):
         gl = QGridLayout(mel)
         # one opt-in: it separates the vocals (a download the first time), and
         # everything below it reads the separated vocals
-        self.stems_box = QCheckBox("Enable melody analysis (separates the vocals so the arrows can follow "
-                                   "the singing; about a minute per song)")
-        self.stems_box.setToolTip("Uses Demucs to split each song into vocals, drums, bass and the rest. "
+        self.stems_box = QCheckBox("Enable melody analysis (separates the vocals)")
+        self.stems_box.setToolTip("So the arrows can follow the singing; about a minute per song. Uses Demucs to split each song into vocals, drums, bass and the rest. "
                                   "Arrows follow and AI verse detection work from the vocals. Kept in a "
                                   ".stems folder per song. The first time, it offers the download "
                                   "(about 1 GB) and shows where every part comes from.")
@@ -503,7 +504,7 @@ class Window(QMainWindow):
         gl.addWidget(self.sec_box, 3, 0, 1, 4)
         self.melody_widgets.append(self.sec_box)
         self._follow_auto()
-        self.lyrics_box = QCheckBox("Use AI verse detection (reads the lyrics to tell chorus from verse)")
+        self.lyrics_box = QCheckBox("Use AI verse detection (reads the lyrics)")
         self.lyrics_box.setToolTip(
             "Reads the words off the separated vocals with a speech model (Whisper, on the CPU), so "
             "a part whose words come back is the chorus and new words are a verse. Sections are "
@@ -659,11 +660,13 @@ class Window(QMainWindow):
     def _advanced_tab(self) -> QWidget:
         w = QWidget()
         v = QVBoxLayout(w)
-        v.addWidget(QLabel("Every setting, after the profile and the Easy sliders. Edit a "
+        intro = QLabel("Every setting, after the profile and the Easy sliders. Edit a "
                            "cell to set it exactly (shown in bold). What each one does is in "
                            "its tooltip. For a song that's been made, the \"made\" columns show "
                            "what each chart was really made with; a difficulty target changes "
-                           "some settings to reach its number (highlighted)."))
+                           "some settings to reach its number (highlighted).")
+        intro.setWordWrap(True)                      # a long label must not set the window's width
+        v.addWidget(intro)
         self.adv = QTableWidget(0, len(DIFFS))
         self.adv.setHorizontalHeaderLabels(list(DIFFS))
         self.adv.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
