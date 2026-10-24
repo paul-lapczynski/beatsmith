@@ -170,12 +170,31 @@ jack_max, flow, side_to_side, flow_spice, energy_follow, the hold settings,
 rhythm_repeat, arrow_repeat, intensity_variation, jump_clusters, jump_holds,
 flow_runs, phrase_shape, rest_bars, beat_backbone, crescendo and target_meter. Needs Python 3.11+.
 
+A few settings are **retired**: the dial test (`dialtest/REPORT.md`) found no
+measurable effect from jacks, jack_max, flow, hold_complexity,
+hold_free_foot, intensity_variation, max_run16, max_nps or meter_min/max.
+Profiles that set them still load and use them as written, but no slider
+moves them and the app's Advanced tab shows them greyed out. (The difficulty
+target still turns max_nps as part of density.)
+
 ## Making it harder (or easier)
 
 Use `--target`. `--target Hard=9` keeps the profile's feel and turns one
-internal intensity dial until the chart rates 9: first more steps and jumps,
-then 8th-note runs, fewer holds and a few quarter-beat bursts, and past what
-8ths allow, 16th streams. Each difficulty can be aimed anywhere from about 2
+internal intensity dial until the chart rates 9, in stages, each only when
+the one before can't get there:
+
+1. **Density**: more (or fewer) steps, the grid and spacing they sit on, the
+   notes/sec cap, jumps and holds. Speed's settings (8ths, quarter-beat
+   bursts, 16ths, flow spice) stay where the Speed slider put them.
+2. **16th streams**, within the 16th allowance Speed sets.
+3. **Speed**: 8th-note runs, then quarter-beat bursts.
+4. **Breathing room** eased to half.
+5. For 9s and 10s: **more and longer 16th streams** than Konami's charts
+   have, past Speed's allowance.
+Whatever the target changed is recorded per chart: in `stepgen.json`
+(`made_with`), the stats file's "Made with" section, and the app's Advanced
+tab ("made" columns), e.g. "Speed raised (8ths 0.30 → 0.65) to get to
+meter 9". Each difficulty can be aimed anywhere from about 2
 to 10 (`--target Easy=3 --target Medium=6 --target Hard=9`). If a song can't
 get there (a slow ballad asked for a 10), it says so and keeps the closest.
 
@@ -197,15 +216,19 @@ toward one end. 0.5 changes nothing.
 | `energy` | flat | dramatic | energy_follow, crescendo, phrase_shape, rest_bars |
 | `jumps` | none | lots | jump, jump_clusters, jump_holds |
 | `speed` | on the beat, no 16ths | busy, double the usual 16ths | half_beats, quarter_beats, sixteenths, flow_spice, beat_backbone |
-| `groove` | anything goes | made to groove | rhythm_repeat, beat_backbone, flow, jacks, energy_follow, phrase_shape, run_breaks, recovery, stomps, rhythm_lock, groove_tries |
-| `breathing` | nonstop runs | pauses and stomps | run_breaks, recovery, stomps |
-| `footwork` | simple | technical | flow, flow_runs, side_to_side, jacks |
-| `holds` | none | lots | hold_rate, hold_complexity, hold_free_foot |
-| `repetition` | always fresh | choruses identical | rhythm_repeat, arrow_repeat, intensity_variation |
+| `groove` | anything goes | made to groove | rhythm_repeat, beat_backbone, energy_follow, phrase_shape, run_breaks, recovery, stomps, rhythm_lock, groove_tries |
+| `breathing` | nonstop runs | more pauses | run_breaks, recovery, stomps (at most 0.4); no effect on Easy, which has no runs |
+| `footwork` | simple | technical | flow_runs, side_to_side |
+| `holds` | none | lots | hold_rate |
+| `repetition` | always fresh | choruses identical | rhythm_repeat, arrow_repeat |
+
+With a difficulty of 9 or 10, a chart may go past these sliders to reach
+the number (the app says so next to them).
 
 16th notes are capped by difficulty the way Konami's charts are (none up
 to 5, about 6% of steps at 7, 11% at 8, 16% at 9, 20% at 10), even when
-aiming with `--target`; Speed scales that cap from none to double.
+aiming with `--target`; Speed scales that cap from none to double. Only
+the last stage of a 9 or 10 target goes past it.
 
 **Groove** is the overall slider, on top of the others in the app's Easy
 tab. In the app it starts at 0, which is off (the profile as it is); on the

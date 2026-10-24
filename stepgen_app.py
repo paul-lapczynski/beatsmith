@@ -56,7 +56,7 @@ SLIDER_LABELS = {
     "energy": ("Energy / arc", "flat", "dramatic"),
     "jumps": ("Jumps", "none", "lots"),
     "speed": ("Speed", "on the beat, no 16ths", "busy, more 16ths"),
-    "breathing": ("Breathing room", "nonstop runs", "pauses and stomps"),
+    "breathing": ("Breathing room", "nonstop runs", "more pauses"),
     "footwork": ("Footwork", "simple", "technical"),
     "holds": ("Holds", "none", "lots"),
     "repetition": ("Repetition", "always fresh", "choruses identical"),
@@ -416,15 +416,26 @@ class Window(QMainWindow):
             s.setTickInterval(25)
             s.setTickPosition(QSlider.TicksBelow)
             s.valueChanged.connect(self.refresh_advanced)
-            s.setToolTip("Moves: " + ", ".join(k for k, _, _ in stepgen.EASY_SLIDERS[key]))
+            s.setToolTip("Moves: " + ", ".join(k for k, _, _ in stepgen.EASY_SLIDERS[key])
+                         + ("\nNo effect on Easy: it has no runs to break up." if key == "breathing" else ""))
             self.sliders[key] = s
-            gl.addWidget(QLabel(f"<b>{label}</b>"), i, 0)
+            gl.addWidget(QLabel(f"<b>{label}</b>" + ("<br><small>(not on Easy: no runs there)</small>"
+                                                       if key == "breathing" else "")), i, 0)
             gl.addWidget(QLabel(lo), i, 1, alignment=Qt.AlignRight)
             gl.addWidget(s, i, 2)
             gl.addWidget(QLabel(hi), i, 3)
         reset = QPushButton("Reset sliders")
         reset.clicked.connect(lambda: [s.setValue(50) for s in self.sliders.values()])
         gl.addWidget(reset, len(SLIDER_LABELS), 2, alignment=Qt.AlignRight)
+        # a difficulty of 9 or 10 is reached by pushing past these sliders
+        self.high_warn = QLabel()
+        self.high_warn.setWordWrap(True)
+        self.high_warn.setStyleSheet("padding: 4px; border-radius: 4px; background: #fdebd0; color: #222;")
+        self.high_warn.hide()
+        gl.addWidget(self.high_warn, len(SLIDER_LABELS) + 1, 0, 1, 4)
+        for d in DIFFS:
+            self.target_on[d].toggled.connect(self._high_warning)
+            self.target[d].valueChanged.connect(self._high_warning)
         feel_box = feel                 # added after the melody box, below
 
         mel = QGroupBox("Follow the melody (try it out)")
@@ -516,6 +527,17 @@ class Window(QMainWindow):
         v.addWidget(feel_box)            # melody first, then the feel sliders on top of it
         v.addStretch()
         return w
+
+    def _high_warning(self, *_):
+        """Say so when a difficulty of 9 or 10 will push past the Feel sliders."""
+        high = [f"{d} {self.target[d].value():g}" for d in DIFFS
+                if self.target_on[d].isChecked() and self.target[d].value() >= 9]
+        self.high_warn.setVisible(bool(high))
+        if high:
+            self.high_warn.setText(
+                f"<b>{', '.join(high)}</b>: to reach a 9 or 10, that chart may not keep to these "
+                "sliders. Speed, Breathing room and the 16th-note limits get pushed as far as it "
+                "takes; the song's stats say what was changed.")
 
     def _follow_auto(self, *_):
         """Show each section kind's share of the main slider, except the ones set by hand."""
@@ -687,14 +709,22 @@ class Window(QMainWindow):
         self.adv.setVerticalHeaderLabels(names)
         bold = QFont()
         bold.setBold(True)
+        retired = "Retired: the dial test found no measurable effect, so no slider moves it. " \
+                  "Profiles that set it still load."
         for r, n in enumerate(names):
-            self.adv.verticalHeaderItem(r).setToolTip(self._docs.get(n, ""))
+            old = n in stepgen.DEPRECATED
+            head = self.adv.verticalHeaderItem(r)
+            head.setText(f"{n} (retired)" if old else n)
+            head.setToolTip(retired if old else self._docs.get(n, ""))
             for c, s in enumerate(specs):
                 it = QTableWidgetItem(f"{getattr(s, n):g}")
                 it.setData(Qt.UserRole, f"{s.name}.{n}")
                 it.setToolTip(self._docs.get(n, ""))
                 if f"{s.name}.{n}" in self.overrides:
                     it.setFont(bold)
+                if old:
+                    it.setFlags(it.flags() & ~(Qt.ItemIsEditable | Qt.ItemIsEnabled))
+                    it.setToolTip(retired)
                 self.adv.setItem(r, c, it)
             for c, d in enumerate(made_diffs, start=len(specs)):
                 rec = made[d]
