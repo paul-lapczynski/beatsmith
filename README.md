@@ -362,7 +362,11 @@ repeated sections, a stats table per difficulty, the StepMania groove radar
 measure as a Mermaid line chart plus a text heat strip. The radar values are
 also written into the `.sm`.
 
-## LLM review (optional)
+## LLM review (under construction)
+
+> Not maintained right now. It predates the AI assist model and newer options:
+> the prompt leaves out the section dials, backoff, stems, shorten and lyrics,
+> and its re-run drops those options. It isn't in the app.
 
 `python3 llm_review.py "songs/My Song/My Song.sm"` has an LLM review a
 generated chart against the song, like a chart author would: does it arc with

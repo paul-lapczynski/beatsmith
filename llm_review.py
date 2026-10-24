@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """llm_review: have an LLM review a generated chart against the song.
 
+UNDER CONSTRUCTION: predates AI assist and the newer options (section dials,
+backoff, stems, shorten, lyrics), which the prompt and the re-run leave out.
+
   python3 llm_review.py "songs/Sandstorm/Sandstorm.sm"                  # Gemini (free tier)
   python3 llm_review.py "songs/Sandstorm/Sandstorm.sm" --provider claude
   python3 llm_review.py "songs/Sandstorm/Sandstorm.sm" --provider local  # LM Studio
