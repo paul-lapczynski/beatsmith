@@ -2574,7 +2574,8 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
              specs: list[DiffSpec] | None = None, keep_format: bool = False,
              stems: bool = False, follow: dict[str, float] | None = None, backoff: bool = False,
              shorten: float = 0.0, keep_verses: bool = False, lyrics: bool = False,
-             art: bool = True, art_online: bool = False) -> Path:
+             art: bool = True, art_online: bool = False, art_image: Path | None = None,
+             art_from: str | None = None) -> Path:
     title = title or src.stem
     # the StepMania song folder holds only the chart and the song; stats,
     # settings, stems and the rest sit one level up (layout.py)
@@ -2749,11 +2750,12 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
             old.unlink()
     # banner, background and jacket (artwork.py): the song's own cover art,
     # looked up online only when asked
-    pics, art_from = {}, {"from": None}
+    pics, art_rec = {}, {"from": None}
     if art:
         import artwork
         try:
-            pics, art_from = artwork.make(src, song, title, artist, art_online)
+            pics, art_rec = artwork.make(src, song, title, artist, art_online,
+                                         image=art_image, image_from=art_from)
         except Exception as e:                   # never worth losing the chart over
             print(f"  artwork: skipped ({e})")
     write_sm(sm, title, artist, music, a, charts, pics)
@@ -2790,7 +2792,7 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
         "shorten": {"target": shorten, "keep_verses": keep_verses, "kept_bars": cut.keep,
                     "summary": cut.describe()} if cut
         else ({"target": shorten, "keep_verses": keep_verses, "kept_bars": None} if shorten else None),
-        "lyrics": bool(words), "art": {"on": art, "online": art_online} | art_from,
+        "lyrics": bool(words), "art": {"on": art, "online": art_online} | art_rec,
         "sections": [{k: sec[k] for k in ("start", "end", "letter", "label", "intensity", "vocals", "lyrics")
                       if k in sec}
                      | {"follow": {d: f[i] for d, f in follows.items()}} for i, sec in enumerate(sections)]}
@@ -2876,6 +2878,9 @@ def main(argv=None) -> int:
                     help="when the song has no cover art, look it up by title and artist on "
                          "musicbrainz.org / coverartarchive.org, else itunes.apple.com (each "
                          "address is printed as it's fetched)")
+    ap.add_argument("--art-image", type=Path, metavar="IMAGE",
+                    help="make the artwork from this picture instead of looking for one")
+    ap.add_argument("--art-from", help=argparse.SUPPRESS)      # where the app found --art-image
     args = ap.parse_args(argv)
     if args.device:
         os.environ["STEPGEN_DEVICE"] = args.device       # the add-ons' own Python inherits it
@@ -2912,7 +2917,7 @@ def main(argv=None) -> int:
                  args.artist, args.bpm, args.seed, args.clicks, specs, args.keep_format,
                  args.stems, {k.strip(): float(v) for k, v in (f.split("=", 1) for f in args.follow)},
                  args.backoff, args.shorten, args.keep_verses, args.lyrics,
-                 not args.no_art, args.art_online)
+                 not args.no_art, args.art_online, args.art_image, args.art_from)
     return 0
 
 

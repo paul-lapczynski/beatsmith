@@ -283,33 +283,49 @@ def draw(data: bytes, out: dict[str, Path]) -> None:
 
 # ------------------------------------------------------------------ all of it
 
+KEPT = "already in the song folder"
+
+
+def find(src: Path, title: str, artist: str, song: Path | None = None, look_online: bool = False,
+         log=print) -> tuple[bytes | None, dict]:
+    """The picture for a song and where it came from. With the song folder
+    given, art already in it is kept: (None, {"from": KEPT})."""
+    pic = next_to(src)
+    if pic is not None:
+        # put there by hand for this song: always used
+        return pic.read_bytes(), {"from": "image next to the song", "file": pic.name}
+    if song is not None and all((song / n).is_file() for n in file_names(title).values()):
+        # an earlier run's, or hand-made: kept, and nothing fetched again
+        return None, {"from": KEPT}
+    data = embedded(src)
+    if data is not None:
+        return data, {"from": "the song file's cover art"}
+    if look_online:
+        print("progress: finding artwork", file=sys.stderr, flush=True)
+        found = online(title, artist, log)
+        if found:
+            return found[0], {"from": found[1]}
+    return None, {"from": None}
+
+
 def make(src: Path, song: Path, title: str, artist: str, look_online: bool = False,
-         log=print) -> tuple[dict[str, str], dict]:
+         log=print, image: Path | None = None, image_from: str | None = None) -> tuple[dict[str, str], dict]:
     """Find a picture for the song and write its art into the song folder.
+    `image` is one already chosen (the app finds it when the song is added).
 
     Returns the .sm tags to fill ({"BANNER": file name, ...}, empty when
     there is none) and a record of where it came from."""
     names = file_names(title)
-    out = {tag: song / n for tag, n in names.items()}
-    pic = next_to(src)
-    if pic is not None:
-        # put there by hand for this song: always used
-        data, where = pic.read_bytes(), {"from": "image next to the song", "file": pic.name}
-    elif all(p.is_file() for p in out.values()):
-        # an earlier run's, or hand-made: kept, and nothing fetched again
-        log("  artwork: kept what's in the song folder (delete it to make it again)")
-        return names, {"from": "made on an earlier run (kept)"}
+    if image is not None:
+        data, where = image.read_bytes(), {"from": image_from or "chosen in the app"}
     else:
-        data = embedded(src)
-        where = {"from": "the song file's cover art"}
-        if data is None and look_online:
-            print("progress: finding artwork", file=sys.stderr, flush=True)
-            found = online(title, artist, log)
-            if found:
-                data, where = found[0], {"from": found[1]}
+        data, where = find(src, title, artist, song, look_online, log)
+    if where["from"] == KEPT:
+        log("  artwork: kept what's in the song folder (delete it to make it again)")
+        return names, where
     if data is None:
-        return {}, {"from": None}
-    draw(data, out)
+        return {}, where
+    draw(data, {tag: song / n for tag, n in names.items()})
     log(f"  artwork: from {where['from']}" + (f" ({where['file']})" if where.get("file") else ""))
     return names, where
 

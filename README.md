@@ -405,6 +405,13 @@ before it's fetched:
 | The cover for what it finds | https://coverartarchive.org (Cover Art Archive; the files come from archive.org) |
 | When MusicBrainz has none | https://itunes.apple.com (iTunes Search API; the pictures come from Apple's mzstatic.com) |
 
+In the app the artwork is found as soon as a song is added, and the
+**Details** tab (beside Chart stats and Log) shows the jacket, banner and
+background it will use, where the picture came from, and what the song file
+says about itself (album, year, length, format). From there **Choose
+picture…** uses one of your own, **Look up online** searches for this song
+only (even with the option off), and **No artwork** leaves it empty.
+
 Options > **Add song artwork** off (`--no-art`) leaves them empty.
 `python artwork.py song.mp3 --out folder [--online]` makes the pictures
 for one song on its own. The art is for your own copies of the songs;
