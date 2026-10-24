@@ -1,0 +1,283 @@
+<title>stepgen Dial Preview</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Bai+Jamjuree:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: an arcade cabinet's control deck on top, two playfields side by side
+   (the default and your setting), the scoreboard of what changed below.
+   One deliberate dark look: it is a StepMania playfield. */
+:root {
+  color-scheme: dark;
+  --bg: #0f1117;          /* cabinet */
+  --deck: #171a23;        /* control deck */
+  --lane: #1c202b;        /* playfield lanes */
+  --line: #2b3040;
+  --fg: #eceff7;
+  --muted: #8f97ad;
+  --accent: #ffd23f;      /* the 16th-note yellow, used for the active control */
+  --beat: #ff4b5c; --half: #4d8dff; --quarter: #ffd23f; --hold: #4fdc7a;
+  --up: #4fdc7a; --down: #ff7a85;
+  --display: "Chakra Petch", "Bai Jamjuree", system-ui, sans-serif;
+  --body: "Bai Jamjuree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+html, body { background: var(--bg); color: var(--fg); }
+body { font-family: var(--body); font-size: 15px; line-height: 1.5; margin: 0; }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 18px; }
+header { display: grid; gap: 4px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 1.9rem; letter-spacing: .02em; margin: 0; text-wrap: balance; }
+h1 span { color: var(--accent); }
+.lede { color: var(--muted); margin: 0; max-width: 66ch; }
+.deck { background: var(--deck); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 600 .82rem var(--body); color: var(--fg); background: var(--lane); border: 1px solid var(--line);
+  border-radius: 999px; padding: 5px 11px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.chip:hover { border-color: var(--muted); }
+.chip[aria-pressed="true"] { background: var(--accent); color: #17140a; border-color: var(--accent); }
+.chip .g { font-family: var(--mono); font-size: .72rem; opacity: .75; }
+.dialrow { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
+.dialrow .end { color: var(--muted); font-size: .85rem; white-space: nowrap; }
+.dialname { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.dialname b { font-family: var(--display); font-size: 1.25rem; letter-spacing: .02em; }
+.pos { font-family: var(--mono); font-size: 1.1rem; color: var(--accent); }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.moves { color: var(--muted); font-size: .82rem; margin: 0; }
+.moves code { font-family: var(--mono); font-size: .78rem; color: var(--fg); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { font: 600 .85rem var(--body); background: var(--lane); color: var(--fg); border: 0; padding: 7px 12px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.play { font: 700 .95rem var(--display); letter-spacing: .04em; background: var(--accent); color: #17140a; border: 0;
+  border-radius: 8px; padding: 8px 18px; cursor: pointer; min-width: 92px; }
+label.tick { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: .88rem; cursor: pointer; }
+button:focus-visible, input:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.field { display: grid; gap: 6px; justify-items: center; min-width: 0; }
+.field h2 { font: 600 .95rem var(--display); letter-spacing: .03em; margin: 0; color: var(--muted); text-align: center; }
+.field h2 b { color: var(--fg); }
+canvas { width: 100%; max-width: 260px; height: auto; display: block; border-radius: 10px; background: var(--lane); }
+.board { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: .9rem; }
+th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; color: var(--muted); font-weight: 400; white-space: normal; }
+thead th { font: 600 .78rem var(--body); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+td.d { font-family: var(--mono); font-size: .82rem; }
+td.d.up { color: var(--up); } td.d.down { color: var(--down); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: .82rem; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+footer { color: var(--muted); font-size: .82rem; max-width: 70ch; }
+@media (max-width: 560px) {
+  .dialrow { grid-template-columns: 1fr; } .dialrow .end { display: none; }
+  .fields { gap: 10px; } h1 { font-size: 1.5rem; }
+  th, td { padding: 6px 5px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>stepgen <span>dial preview</span></h1>
+    <p class="lede" id="lede">Pick a control and move its slider: the right playfield shows the same 4 bars made at that setting, the left one at the default. Press Play to hear the song with a tick on every step.</p>
+  </header>
+
+  <section class="deck" aria-label="Controls">
+    <div class="chips" id="chips" role="group" aria-label="Control to preview"></div>
+    <div class="dialname"><b id="dname">Jumps</b><span class="pos" id="dpos">50%</span></div>
+    <div class="dialrow">
+      <span class="end" id="dlo">none</span>
+      <input type="range" id="slider" min="0" max="8" step="1" value="4" aria-label="Setting">
+      <span class="end" id="dhi">lots</span>
+    </div>
+    <p class="moves" id="dmoves"></p>
+    <div class="controls">
+      <button class="play" id="play" type="button">Play</button>
+      <div class="seg" id="diffs" role="group" aria-label="Chart"></div>
+      <label class="tick"><input type="checkbox" id="ticks" checked> Tick on every step</label>
+    </div>
+  </section>
+
+  <section class="fields" aria-label="Playfields">
+    <div class="field"><h2>Default · <b id="refLabel">50%</b></h2><canvas id="cRef" width="260" height="560"></canvas></div>
+    <div class="field"><h2>Your setting · <b id="curLabel">50%</b></h2><canvas id="cCur" width="260" height="560"></canvas></div>
+  </section>
+
+  <div class="legend">
+    <span><i style="background:var(--beat)"></i>beat (4th)</span>
+    <span><i style="background:var(--half)"></i>half-beat (8th)</span>
+    <span><i style="background:var(--quarter)"></i>quarter-beat (16th)</span>
+    <span><i style="background:var(--hold)"></i>freeze</span>
+  </div>
+
+  <section class="board" aria-label="Whole chart">
+    <table>
+      <thead><tr><th>Whole chart</th><th>Default</th><th>Yours</th><th>Change</th></tr></thead>
+      <tbody id="stats"></tbody>
+    </table>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const ARROW = new Path2D("M5 32 L29 8 Q32 5 35 8 L39 12 Q42 15 39 18 L30 26 L57 26 Q61 26 61 30 L61 34 Q61 38 57 38 L30 38 L39 46 Q42 49 39 52 L35 56 Q32 59 29 56 Z");
+const ROT = [0, -Math.PI / 2, Math.PI / 2, Math.PI];
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const COL = { 0: [css("--beat"), "#a3121f"], 2: [css("--half"), "#1b3f99"], 1: [css("--quarter"), "#9c7a00"], 3: [css("--quarter"), "#9c7a00"] };
+const HOLDC = [css("--hold"), "#1f7a3c"];
+const STATS = [["meter", "Difficulty (stepgen's rating)", 1], ["steps", "Steps", 0], ["jumps", "Jumps, % of steps", 0],
+  ["freezes", "Freezes", 0], ["eighths", "Half-beat steps, %", 0], ["sixteenths", "Quarter-beat steps, %", 1], ["groove", "Groove meter", 0]];
+
+let dialIx = 0, pos = 0, diff = "Hard";
+let ctx = null, buf = null, src = null, startAt = 0, playing = false, scheduled = new Set(), sched = null;
+
+const $ = id => document.getElementById(id);
+const dial = () => DATA.dials[dialIx];
+const chartAt = (d, i) => d.positions[i].charts[diff];
+
+function setup() {
+  $("lede").textContent = `Pick a control and move its slider: the right playfield shows ${DATA.song}'s same 4 bars (bars ${DATA.bar0 + 1}-${DATA.bar0 + 4}, ${DATA.bpm} BPM) made at that setting, the left one at the default. Press Play to hear them with a tick on every step.`;
+  $("foot").textContent = `Made by stepgen's dial test with the ${DATA.profile} profile, seed 1, the app's default targets (Easy 3, Medium 6, Hard 8) and everything else at its default. Each slider is shown on its own; combinations aren't pre-made. The table is the whole song's chart, the playfields 4 bars of it.`;
+  const chips = $("chips");
+  DATA.dials.forEach((d, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.id = "chip-" + d.key;
+    b.innerHTML = `${d.label}${d.grade ? ` <span class="g">${d.grade}</span>` : ""}`;
+    b.title = d.grade ? `Graded ${d.grade} in the dial test` : "";
+    b.onclick = () => { dialIx = i; pos = d.default; syncDial(); };
+    chips.appendChild(b);
+  });
+  ["Easy", "Medium", "Hard"].forEach(n => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = n; b.id = "diff-" + n;
+    b.onclick = () => { diff = n; syncDial(); };
+    $("diffs").appendChild(b);
+  });
+  $("slider").oninput = e => { pos = +e.target.value; draw(); };
+  $("play").onclick = toggle;
+  dialIx = Math.max(0, DATA.dials.findIndex(d => d.key === "jumps"));
+  pos = dial().default;
+  syncDial();
+  window.addEventListener("resize", draw);
+  requestAnimationFrame(loop);
+}
+
+function syncDial() {
+  const d = dial();
+  DATA.dials.forEach((x, i) => $("chip-" + x.key).setAttribute("aria-pressed", i === dialIx));
+  ["Easy", "Medium", "Hard"].forEach(n => $("diff-" + n).setAttribute("aria-pressed", n === diff));
+  $("dname").textContent = d.label;
+  $("dlo").textContent = d.lo; $("dhi").textContent = d.hi;
+  const s = $("slider"); s.max = d.positions.length - 1; s.value = pos;
+  $("dmoves").innerHTML = "Moves: " + d.moves.split(", ").map(m => `<code>${m}</code>`).join(", ")
+    + (d.key === "difficulty" ? ". All three charts are aimed at the number." : "");
+  draw();
+}
+
+function draw() {
+  const d = dial();
+  $("dpos").textContent = d.positions[pos].label;
+  $("refLabel").textContent = d.positions[d.default].label;
+  $("curLabel").textContent = d.positions[pos].label;
+  const now = playing ? songBeat() : null;
+  field($("cRef"), chartAt(d, d.default).notes, now);
+  field($("cCur"), chartAt(d, pos).notes, now);
+  const a = chartAt(d, d.default).stats, b = chartAt(d, pos).stats;
+  $("stats").innerHTML = STATS.map(([k, label, nd]) => {
+    const x = a[k], y = b[k];
+    if (x == null || y == null) return "";
+    const ch = y - x, cls = Math.abs(ch) < (nd ? 0.05 : 0.5) ? "" : (ch > 0 ? "up" : "down");
+    const sign = ch > 0 ? "+" : ch < 0 ? "−" : "±";
+    return `<tr><td>${label}</td><td>${x.toFixed(nd)}</td><td>${y.toFixed(nd)}</td><td class="d ${cls}">${sign}${Math.abs(ch).toFixed(nd)}</td></tr>`;
+  }).join("");
+}
+
+function field(cv, notes, nowBeat) {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 260;
+  const gut = 22, lw = (w - gut) / 4, bh = Math.max(22, lw * 0.78), size = Math.min(lw * 0.86, bh * 1.1);
+  const top = size / 2 + 6, h = top + 16 * bh + size / 2 + 6;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + "px";
+  }
+  const g = cv.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = css("--lane"); g.fillRect(0, 0, w, h);
+  for (let b = 0; b <= 16; b++) {
+    g.strokeStyle = b % 4 === 0 ? "#5a6075" : css("--line"); g.lineWidth = b % 4 === 0 ? 1.5 : 1;
+    g.beginPath(); g.moveTo(gut, top + b * bh); g.lineTo(w, top + b * bh); g.stroke();
+    if (b % 4 === 0 && b < 16) { g.fillStyle = css("--muted"); g.font = "10px " + css("--mono"); g.save(); g.translate(13, top + b * bh + 4); g.rotate(Math.PI / 2); g.fillText(DATA.bar0 + 1 + b / 4, 0, 0); g.restore(); }
+  }
+  const y = r => top + (r / 4) * bh, x = p => gut + lw * (p + 0.5);
+  for (const [r, mask, hold] of notes) if (hold) for (let p = 0; p < 4; p++) if (mask >> p & 1) {
+    g.fillStyle = HOLDC[0] + "8c"; g.strokeStyle = HOLDC[1]; g.lineWidth = 1.5;
+    const y1 = y(r), y2 = Math.min(y(r + hold), top + 16 * bh);
+    roundRect(g, x(p) - lw * 0.24, y1, lw * 0.48, y2 - y1, 5); g.fill(); g.stroke();
+  }
+  for (const [r, mask, hold] of notes) for (let p = 0; p < 4; p++) if (mask >> p & 1) {
+    const hit = nowBeat != null && r / 4 <= nowBeat && nowBeat - r / 4 < 0.35;
+    const past = nowBeat != null && r / 4 < nowBeat - 0.35;
+    const [fill, edge] = hold ? HOLDC : COL[r % 4];
+    g.save(); g.translate(x(p), y(r)); g.scale(size / 64 * (hit ? 1.18 : 1), size / 64 * (hit ? 1.18 : 1)); g.rotate(ROT[p]); g.translate(-32, -32);
+    g.globalAlpha = past ? 0.35 : 1;
+    g.fillStyle = hit ? "#ffffff" : fill; g.strokeStyle = edge; g.lineWidth = 5; g.lineJoin = "round";
+    g.fill(ARROW); g.stroke(ARROW);
+    g.restore();
+  }
+  if (nowBeat != null && nowBeat >= -4 && nowBeat <= 16) {
+    const py = top + Math.max(0, nowBeat) * bh;
+    g.strokeStyle = css("--accent"); g.lineWidth = 2; g.globalAlpha = nowBeat < 0 ? 0.4 : 1;
+    g.beginPath(); g.moveTo(gut, py); g.lineTo(w, py); g.stroke(); g.globalAlpha = 1;
+  }
+}
+function roundRect(g, x, y, w, h, r) { g.beginPath(); g.roundRect ? g.roundRect(x, y, w, Math.max(h, 0), r) : g.rect(x, y, w, h); }
+
+// ---------------------------------------------------------------- sound
+function clipTime() { return buf ? ((ctx.currentTime - startAt) % buf.duration) : 0; }
+function songBeat() { return (clipTime() - DATA.beat0) / DATA.spb; }
+
+async function toggle() {
+  if (playing) { stop(); return; }
+  try {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") await ctx.resume();
+    if (!buf) {
+      $("play").textContent = "Loading…";
+      const bin = Uint8Array.from(atob(DATA.audio), c => c.charCodeAt(0));
+      buf = await ctx.decodeAudioData(bin.buffer);
+    }
+    src = ctx.createBufferSource(); src.buffer = buf; src.loop = true; src.connect(ctx.destination);
+    startAt = ctx.currentTime + 0.05; src.start(startAt);
+    playing = true; scheduled.clear(); $("play").textContent = "Stop";
+    sched = setInterval(schedule, 25);
+  } catch (e) {
+    $("play").textContent = "Play"; $("foot").textContent = "This browser couldn't play the clip: " + e.message;
+  }
+}
+function stop() {
+  if (src) try { src.stop(); } catch (e) {}
+  clearInterval(sched); playing = false; $("play").textContent = "Play"; draw();
+}
+function schedule() {
+  if (!$("ticks").checked) return;
+  const look = 0.12, el = ctx.currentTime - startAt, loopN = Math.floor(el / buf.duration);
+  for (const n of [loopN, loopN + 1]) for (const [r, mask] of chartAt(dial(), pos).notes) {
+    const t = startAt + n * buf.duration + DATA.beat0 + (r / 4) * DATA.spb;
+    const key = n + ":" + r;
+    if (t >= ctx.currentTime && t < ctx.currentTime + look && !scheduled.has(key)) {
+      scheduled.add(key); tick(t, (mask & (mask - 1)) !== 0);
+    }
+  }
+}
+function tick(t, jump) {
+  const o = ctx.createOscillator(), gn = ctx.createGain();
+  o.frequency.value = jump ? 1250 : 1900; o.type = "square";
+  gn.gain.setValueAtTime(jump ? 0.22 : 0.14, t); gn.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+  o.connect(gn); gn.connect(ctx.destination); o.start(t); o.stop(t + 0.04);
+}
+function loop() { if (playing) draw(); requestAnimationFrame(loop); }
+
+if (DATA) setup();
+</script>

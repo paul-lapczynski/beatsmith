@@ -9,6 +9,9 @@
 Turns a song into a StepMania `.sm` file with Easy, Medium and Hard
 `dance-single` (4 panel) charts.
 
+What every slider and setting does, with pictures of the arrows at 25%, 50% and 75%:
+[docs/DIALS.md](docs/DIALS.md).
+
 ## Quick start
 
 ```

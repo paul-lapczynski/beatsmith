@@ -1,0 +1,4 @@
+# on top of ../requirements.txt (librosa, soundfile, numpy); onnxruntime for the AI assist runs
+pandas
+scipy
+cairosvg    # optional: PNG copies of the pictures
