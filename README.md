@@ -2,6 +2,10 @@
 
 # BeatSmith
 
+[![Build](https://github.com/paul-lapczynski/beatsmith/actions/workflows/release.yml/badge.svg?branch=main&event=push)](https://github.com/paul-lapczynski/beatsmith/actions/workflows/release.yml)
+[![Release](https://img.shields.io/github/v/release/paul-lapczynski/beatsmith)](https://github.com/paul-lapczynski/beatsmith/releases/latest)
+[![License](https://img.shields.io/github/license/paul-lapczynski/beatsmith)](LICENSE)
+
 Turns a song into a StepMania `.sm` file with Easy, Medium and Hard
 `dance-single` (4 panel) charts.
 
