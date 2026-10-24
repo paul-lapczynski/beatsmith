@@ -65,6 +65,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      # build.bat downloads ffmpeg only when packaging/ffmpeg is missing
+      - uses: actions/cache@v4
+        with:
+          path: packaging/ffmpeg
+          key: ffmpeg-7
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -80,6 +88,8 @@ jobs:
           # build.bat makes its venv with "py -3", which would pick the runner's newest
           # Python; onnxruntime has no wheels for that yet
           PY_PYTHON3: "3.12"
+          # the Inno Setup .exe installer only goes into releases
+          STEPGEN_SKIP_EXE: ${{ startsWith(github.ref, 'refs/tags/v') && '0' || '1' }}
         run: packaging\build.bat
 
       - name: Keep the build
@@ -98,6 +108,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
 
       - name: Pick the version
         run: echo "STEPGEN_VERSION=${STEPGEN_VERSION#v}" >> "$GITHUB_ENV"

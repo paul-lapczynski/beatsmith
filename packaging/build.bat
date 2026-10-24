@@ -37,7 +37,7 @@ python -m pip install -r ..\requirements.txt -r ..\requirements-app.txt pyinstal
 
 if not exist ffmpeg\ffmpeg.exe (
   echo Fetching ffmpeg for .wma/.m4a support...
-  powershell -NoProfile -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip -OutFile ffmpeg.zip; Expand-Archive ffmpeg.zip ffmpeg-tmp -Force; New-Item -ItemType Directory ffmpeg -Force | Out-Null; Get-ChildItem ffmpeg-tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1 | Copy-Item -Destination ffmpeg\ffmpeg.exe; Remove-Item ffmpeg.zip; Remove-Item ffmpeg-tmp -Recurse"
+  powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip -OutFile ffmpeg.zip; Expand-Archive ffmpeg.zip ffmpeg-tmp -Force; New-Item -ItemType Directory ffmpeg -Force | Out-Null; Get-ChildItem ffmpeg-tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1 | Copy-Item -Destination ffmpeg\ffmpeg.exe; Remove-Item ffmpeg.zip; Remove-Item ffmpeg-tmp -Recurse"
   if not exist ffmpeg\ffmpeg.exe echo   (couldn't fetch ffmpeg; the app still works for mp3/ogg/wav/flac)
 )
 
@@ -54,7 +54,8 @@ for %%F in (dist\stepgen-%STEPGEN_VERSION%.msi) do if %%~zF LSS 50000000 (
 
 set ISCC="%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if not exist %ISCC% set ISCC="%ProgramFiles%\Inno Setup 6\ISCC.exe"
-if exist %ISCC% %ISCC% installer.iss
+rem STEPGEN_SKIP_EXE=1 skips it (test builds only need the MSI)
+if not "%STEPGEN_SKIP_EXE%"=="1" if exist %ISCC% %ISCC% installer.iss
 
 echo.
 echo Done. Installer: %~dp0dist\stepgen-%STEPGEN_VERSION%.msi
