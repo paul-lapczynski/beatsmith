@@ -141,6 +141,9 @@ def _python(log) -> Path:
             subprocess.run([str(py), str(gp), "--no-warn-script-location"], check=True, **_no_window())
             gp.unlink()
     else:
+        if getattr(sys, "frozen", False):
+            # the packaged Mac app has no Python of its own to make a venv from
+            raise RuntimeError("add-ons aren't available in the Mac app yet")
         py = _addon_python()
         if not py.is_file():
             log("creating a private Python environment")

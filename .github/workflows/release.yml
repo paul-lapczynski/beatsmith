@@ -1,7 +1,7 @@
-# Builds the Windows installer with packaging/build.bat.
-# Push a tag like v1.2.0 to publish a GitHub release with the installer attached;
-# Pull requests that touch packaging, and "Run workflow" on the Actions tab, make a
-# test build kept as a workflow artifact.
+# Builds the Windows installers (packaging/build.bat) and the macOS disk image
+# (packaging/build-mac.sh). Push a tag like v1.2.0 to publish a GitHub release with
+# all of them attached. Pull requests that touch packaging, and "Run workflow" on
+# the Actions tab, make test builds kept as workflow artifacts.
 name: Release
 
 on:
@@ -19,8 +19,12 @@ concurrency:
 permissions:
   contents: write
 
+env:
+  # a tag sets the version (v0.0.2 -> 0.0.2); test builds use 0.0.1
+  STEPGEN_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '0.0.1' }}
+
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,10 +39,7 @@ jobs:
 
       - name: Pick the version
         shell: bash
-        run: |
-          # a tag sets it (v0.0.2 -> 0.0.2); test builds use build.bat's default
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF_NAME#v}"; else v="0.0.1"; fi
-          echo "STEPGEN_VERSION=$v" >> "$GITHUB_ENV"
+        run: echo "STEPGEN_VERSION=${STEPGEN_VERSION#v}" >> "$GITHUB_ENV"
 
       - name: Build
         shell: cmd
@@ -51,16 +52,47 @@ jobs:
       - name: Keep the build
         uses: actions/upload-artifact@v4
         with:
-          name: installer-${{ env.STEPGEN_VERSION }}
+          name: windows-${{ env.STEPGEN_VERSION }}
           path: |
             packaging/dist/*.msi
             packaging/dist/*.exe
 
+  mac:
+    runs-on: macos-latest       # Apple Silicon
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Pick the version
+        run: echo "STEPGEN_VERSION=${STEPGEN_VERSION#v}" >> "$GITHUB_ENV"
+
+      - name: Build
+        env:
+          PYTHON: python
+        run: sh packaging/build-mac.sh
+
+      - name: Keep the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-${{ env.STEPGEN_VERSION }}
+          path: packaging/dist/*.dmg
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+
       - name: Publish the release
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          shopt -s nullglob
-          gh release create "$GITHUB_REF_NAME" packaging/dist/*.msi packaging/dist/*.exe --title "$GITHUB_REF_NAME" --generate-notes
+          gh release create "$GITHUB_REF_NAME" out/* --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" --generate-notes

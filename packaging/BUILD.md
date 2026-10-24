@@ -32,3 +32,14 @@ Demucs and PyTorch (about 1 GB) are deliberately left out of the installer
 `%LOCALAPPDATA%\stepgen\addons\stems` with a private embeddable Python, and
 runs `stems.py` (shipped as a plain data file) with it. Uninstalling the app
 leaves that folder; delete it by hand to remove the add-on.
+
+## macOS
+
+On a Mac with Python 3.12, run `sh packaging/build-mac.sh`. It makes
+`packaging/dist/stepgen.app` and `packaging/dist/stepgen-<version>-mac.dmg`
+(Apple Silicon). GitHub builds the same disk image for every release.
+
+The app isn't signed with an Apple Developer ID, so the first time it's
+opened macOS blocks it: open System Settings > Privacy & Security and click
+"Open Anyway" next to stepgen. The vocal separation and AI verse detection
+add-ons aren't available in the Mac app yet. ffmpeg isn't bundled.

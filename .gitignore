@@ -49,3 +49,6 @@ training/
 
 # Local Claude Code settings
 .claude/
+
+# macOS build venv
+packaging/.venv-mac/
