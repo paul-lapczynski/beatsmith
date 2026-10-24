@@ -52,3 +52,4 @@ training/
 
 # macOS build venv
 packaging/.venv-mac/
+packaging/version.txt

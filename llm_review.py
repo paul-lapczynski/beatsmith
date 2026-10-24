@@ -309,6 +309,8 @@ def rerun_cmd(meta: dict, sets: list[str]) -> list[str]:
         cmd += ["--bpm", str(meta["bpm"])]
     if meta.get("keep_format"):
         cmd.append("--keep-format")
+    if (meta.get("art") or {}).get("on") is False:
+        cmd.append("--no-art")
     for k, v in (meta.get("easy") or {}).items():
         cmd += ["--easy", f"{k}={v}"]
     for s in list(meta.get("set", [])) + sets:

@@ -27,6 +27,12 @@ song (stats, the settings it was made with, stems, compare charts, the
 editor's backup) sits one level up in `songs/My Song/`. Songs made with older
 versions, with everything in one folder, still open and are tidied up when
 made again. Several files at once: `python3 stepgen.py *.mp3`.
+
+Folder and file names are always plain letters, because StepMania on Windows
+skips a song whose folder or files have Korean, Japanese and other letters in
+their names. A title like `(타샤니) Caution (경고)` by Tashannie is made as
+`Tashannie - Caution/` (Korean on its own is spelled out: `경고` is
+`Gyeonggo`), while the .sm keeps the real title and adds `#TITLETRANSLIT`.
 MP3, OGG, WAV and FLAC load directly; anything else goes through ffmpeg.
 
 | Option | What it does |
@@ -40,6 +46,8 @@ MP3, OGG, WAV and FLAC load directly; anything else goes through ffmpeg.
 | `--set Hard.jump=0.8` | Change one setting for this run (repeatable). Always wins over `--easy` |
 | `--backoff` | Make the hardest chart first and cut the easier ones out of it |
 | `--clicks` | Also writes `<title>.clicks.wav`: the song with a tick on every Hard note, to check sync by ear |
+| `--no-art` | Leave the banner, background and jacket empty. See "Song artwork" |
+| `--art-online` | Look the artwork up online when the song has none. See "Song artwork" |
 
 ## The app
 
@@ -377,6 +385,52 @@ The app says which GPU it found under the option. If the GPU fails (out
 of memory, an old driver), that step runs on the CPU instead, so a GPU never
 breaks a run. On the command line it's `--device auto|cpu`, and
 `python accel.py` prints what stepgen would use on this computer.
+
+### Song artwork
+
+Each song gets a banner (`<title>-bn.png`, 418x164), a background
+(`<title>-bg.png`, 640x480, dimmed so the arrows stay easy to read) and a
+jacket (`<title>-jacket.png`, 512x512), filled into the .sm's `#BANNER`,
+`#BACKGROUND` and `#JACKET`. The picture comes from, in order:
+
+1. an image beside the song: the song's own name (`My Song.jpg` for
+   `My Song.mp3`), else `cover`, `folder`, `front` or `album` .jpg/.png
+2. art already in the song folder from an earlier run, kept as it is, so
+   you can swap in your own (delete the files to make them again)
+3. the cover art inside the song file (MP3, FLAC, Ogg, M4A)
+4. online, only when Options > **Look up artwork online when a song has
+   none** is ticked (`--art-online`)
+
+Nothing is downloaded for 1 to 3. The online lookup sends the song's title
+and artist to these sites, and each address is listed in the song's log
+before it's fetched:
+
+| What | From |
+|---|---|
+| Song search by title and artist | https://musicbrainz.org (MusicBrainz) |
+| The cover for what it finds | https://coverartarchive.org (Cover Art Archive; the files come from archive.org) |
+| When MusicBrainz has none | https://itunes.apple.com (iTunes Search API; the pictures come from Apple's mzstatic.com) |
+| Then, and for a photo of the artist | https://api.deezer.com (Deezer API; the pictures come from dzcdn.net) |
+
+It tries the song's own cover first, then its album's (from the album tag),
+then another cover by the same artist, and last a photo of the artist.
+Without an artist tag it guesses one from the name ("Artist - Title",
+"ARTIST-TITLE") and also tries what's in brackets as the title. It looks
+in the US, Korean and Japanese iTunes stores and accepts a title listed in
+another language when the English one is in brackets ("경고 (Caution)").
+The Details tab says what it matched and flags a loose match to check.
+
+In the app the artwork is found as soon as a song is added, and the
+**Details** tab (beside Chart stats and Log) shows the jacket, banner and
+background it will use, where the picture came from, and what the song file
+says about itself (album, year, length, format). From there **Choose
+picture…** uses one of your own, **Look up online** searches for this song
+only (even with the option off), and **No artwork** leaves it empty.
+
+Options > **Add song artwork** off (`--no-art`) leaves them empty.
+`python artwork.py song.mp3 --out folder [--online]` makes the pictures
+for one song on its own. The art is for your own copies of the songs;
+album covers belong to their owners.
 
 ## Profiles (play styles)
 

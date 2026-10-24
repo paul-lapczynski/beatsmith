@@ -13,8 +13,12 @@ from __future__ import annotations
 import html
 import json
 import os
+import queue
 import re
+import shutil
 import sys
+import tempfile
+import threading
 import time
 from dataclasses import fields
 from pathlib import Path
@@ -33,8 +37,8 @@ if len(sys.argv) > 1 and sys.argv[1] in ("--install-stems", "--install-addon"):
     addons.install(lambda m: print(m, flush=True), sys.argv[2] if len(sys.argv) > 2 else "stems")
     sys.exit(0)
 
-from PySide6.QtCore import QProcess, QProcessEnvironment, QSettings, QStandardPaths, Qt, QUrl
-from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QIcon
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QSettings, QStandardPaths, Qt, QUrl, Signal
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog,
     QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
@@ -46,7 +50,8 @@ from PySide6.QtWidgets import (
 HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 sys.path.insert(0, str(HERE))
 import stepgen  # noqa: E402
-from layout import find_sm, outer_of, side  # noqa: E402
+from layout import file_name, find_sm, outer_of, side, song_dirs  # noqa: E402
+import artwork  # noqa: E402
 
 APP_NAME = "stepgen"
 AUDIO_EXT = {".mp3", ".ogg", ".wav", ".flac", ".m4a", ".aac", ".wma", ".opus"}
@@ -152,6 +157,86 @@ class Job:
         self.meters: dict[str, str] = {}
         self.sm: Path | None = None
         self.proc: QProcess | None = None
+        # artwork, found when the song is added (ArtFinder): "" not looked for,
+        # "looking", "found" (art_image is the picture), "kept" (the song
+        # folder already has art), "none", "cleared" (No artwork pressed)
+        self.art_state = ""
+        self.art_image: Path | None = None
+        self.art_where: dict = {}
+        self.art_log = ""
+
+
+def song_info(path: Path) -> list[tuple[str, str]]:
+    """What the song file says about itself, for the Details tab."""
+    rows = [("File", str(path))]
+    try:
+        import mutagen
+        f = mutagen.File(str(path), easy=True)
+    except Exception:
+        f = None
+    if f is None:
+        return rows
+    tags = f.tags or {}
+    for key, name in (("album", "Album"), ("date", "Year"), ("genre", "Genre"), ("tracknumber", "Track")):
+        try:
+            v = (tags.get(key) or [""])[0].strip()
+        except Exception:
+            v = ""
+        if v:
+            rows.append((name, v))
+    info = getattr(f, "info", None)
+    if info is not None:
+        if getattr(info, "length", 0):
+            m, sec = divmod(int(round(info.length)), 60)
+            rows.append(("Length", f"{m}:{sec:02d}"))
+        fmt = [path.suffix.lstrip(".").upper()]
+        if getattr(info, "bitrate", 0):
+            fmt.append(f"{info.bitrate // 1000} kbps")
+        if getattr(info, "sample_rate", 0):
+            fmt.append(f"{info.sample_rate / 1000:g} kHz")
+        if getattr(info, "channels", 0):
+            fmt.append({1: "mono", 2: "stereo"}.get(info.channels, f"{info.channels} channels"))
+        rows.append(("Format", ", ".join(fmt)))
+    return rows
+
+
+class ArtFinder(QObject):
+    """Finds each added song's artwork on one background thread, in the
+    order they were added (one at a time also keeps to MusicBrainz's one
+    request a second), and draws the banner, background and jacket."""
+    done = Signal(object, object, object, str)          # job, picture file or None, where, log
+
+    def __init__(self, folder: Path):
+        super().__init__()
+        self.folder = folder
+        self.todo: queue.Queue = queue.Queue()
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def find(self, job: Job, song: Path | None, online: bool, image: Path | None = None):
+        self.todo.put((job, job.path, job.title, job.artist, song, online, image, out_title(job)))
+
+    def _run(self):
+        n = 0
+        while True:
+            job, src, title, artist, song, online, image, name = self.todo.get()
+            lines = []
+            try:
+                if image is not None:
+                    data, where = image.read_bytes(), {"from": "picked by hand", "file": image.name}
+                else:
+                    data, where = artwork.find(src, title, artist, song, online, lines.append, name)
+                pic = None
+                if data is not None:
+                    n += 1
+                    d = self.folder / str(n)
+                    d.mkdir(parents=True, exist_ok=True)
+                    pic = d / "picture"
+                    pic.write_bytes(data)
+                    artwork.draw(data, {tag: d / f"{tag}.png" for tag in ("BANNER", "BACKGROUND", "JACKET")})
+            except Exception as e:
+                pic, where = None, {"from": None}
+                lines.append(f"  artwork: failed ({e})")
+            self.done.emit(job, pic, where, "\n".join(lines))
 
 
 class Window(QMainWindow):
@@ -250,6 +335,7 @@ class Window(QMainWindow):
         self.stats_view.setOpenExternalLinks(True)
         self.log_view = QPlainTextEdit(readOnly=True)
         self.log_view.setFont(QFont("Consolas", 9))
+        detail.addTab(self._details_tab(), "Details")
         detail.addTab(self.stats_view, "Chart stats")
         detail.addTab(self.log_view, "Log")
         self.open_btn = QPushButton("Open song folder")
@@ -700,6 +786,28 @@ class Window(QMainWindow):
         f.addRow(self.keep_format)
         self.clicks = QCheckBox("Also write a click track (.clicks.wav) to check sync")
         f.addRow(self.clicks)
+        # song artwork (artwork.py): the song's own cover art; online only when ticked
+        import artwork
+        self.art = QCheckBox("Add song artwork: banner, background and jacket")
+        self.art.setChecked(True)
+        self.art.setToolTip("Made from an image beside the song (the song's own name, or cover.jpg / "
+                            "folder.jpg) or else the cover art inside the song file. Nothing is downloaded. "
+                            "Art already in the song folder is kept, so you can replace it by hand.")
+        f.addRow(self.art)
+        self.art_online = QCheckBox("Look up artwork online when a song has none")
+        self.art_online.setToolTip("Sends the song's title and artist to these sites and downloads the "
+                                   "cover it finds. Each address is listed in the song's log.\n\n"
+                                   + "\n".join(f"{what}: {where}" for what, where in artwork.ONLINE_SOURCES))
+        f.addRow(self.art_online)
+        self.art_sources = QLabel("Searches musicbrainz.org, itunes.apple.com and api.deezer.com; pictures "
+                                  "come from coverartarchive.org (archive.org), Apple's mzstatic.com or "
+                                  "Deezer's dzcdn.net.")
+        self.art_sources.setWordWrap(True)
+        self.art_sources.setStyleSheet("color: gray;")
+        f.addRow(self.art_sources)
+        self.art.toggled.connect(self.art_online.setEnabled)
+        self.art.toggled.connect(lambda on: on and self.find_art_all())
+        self.art_online.toggled.connect(lambda on: on and self.find_art_all())
         # hardware acceleration: only the neural-network parts can use a GPU (accel.py)
         self.device = QComboBox()
         self.device.addItem("Use the GPU when there is one", "auto")
@@ -1015,6 +1123,10 @@ class Window(QMainWindow):
             args.append("--keep-format")
         if self.clicks.isChecked():
             args.append("--clicks")
+        if not self.art.isChecked():
+            args.append("--no-art")
+        elif self.art_online.isChecked():
+            args.append("--art-online")
         return args
 
     def _watch_panel(self):
@@ -1132,6 +1244,8 @@ class Window(QMainWindow):
         self.overrides = json.loads(st.value("overrides", "{}"))
         self.device.setCurrentIndex(max(0, self.device.findData(st.value("device", "auto"))))
         self._gpu_state(check_install=True)
+        self.art.setChecked(st.value("art", "true") == "true")
+        self.art_online.setChecked(st.value("art_online", "false") == "true")
 
     def closeEvent(self, ev):
         if not self.editor.confirm_discard():
@@ -1166,6 +1280,9 @@ class Window(QMainWindow):
         st.setValue("backoff", "true" if self.backoff.isChecked() else "false")
         st.setValue("overrides", json.dumps(self.overrides))
         st.setValue("device", self.device.currentData())
+        st.setValue("art", "true" if self.art.isChecked() else "false")
+        st.setValue("art_online", "true" if self.art_online.isChecked() else "false")
+        shutil.rmtree(self._art_dir, ignore_errors=True)
         super().closeEvent(ev)
 
     # ---------------------------------------------------------------- queue
@@ -1205,6 +1322,7 @@ class Window(QMainWindow):
                 self.jobs.append(Job(f))
                 self.jobs[-1].settings = json.loads(json.dumps(self.defaults))
                 self._add_row(self.jobs[-1])
+                self.find_art(self.jobs[-1])
                 added += 1
         if added and self.show_made.isChecked():
             self.refresh_made()            # a song added again replaces its "made earlier" row
@@ -1288,6 +1406,8 @@ class Window(QMainWindow):
             job.title = it.text().strip() or job.path.stem
         elif it.column() == C_ARTIST:
             job.artist = it.text().strip()
+        if it.column() in (C_TITLE, C_ARTIST) and job.art_state in ("none", "kept") and job.status != EARLIER:
+            self.find_art(job)          # a better name to search by, or a different song folder
         elif it.column() == C_BPM:
             try:
                 job.bpm = max(0.0, float(it.text()))
@@ -1302,13 +1422,53 @@ class Window(QMainWindow):
         return [self.jobs[r] for r in sorted({i.row() for i in self.table.selectedIndexes()})]
 
     def remove_selected(self):
-        for job in reversed(self.selected_jobs()):
-            if job in self.running:
+        jobs = [j for j in self.selected_jobs() if j not in self.running]
+        # songs already made have a folder in the output folder, which "Show songs
+        # already made" would list again: offer to put it in the Recycle Bin too
+        made = [j for j in jobs if j.sm and j.sm.is_file()]
+        trash = False
+        if made:
+            box = QMessageBox(self)
+            box.setWindowTitle("Remove")
+            names = ", ".join(j.title for j in made[:3]) + (f" and {len(made) - 3} more" if len(made) > 3 else "")
+            box.setText(f"{names} {'has' if len(made) == 1 else 'have'} already been made.\n\n"
+                        "Also move the song's folder in the output folder to the Recycle Bin? "
+                        "Otherwise it's only taken off this list, and shows up again with "
+                        "\"Show songs already made\". Copies in StepMania's Songs folder aren't touched.")
+            both = box.addButton("Remove and move to Recycle Bin", QMessageBox.DestructiveRole)
+            box.addButton("Only take off the list", QMessageBox.AcceptRole)
+            box.addButton(QMessageBox.Cancel)
+            box.exec()
+            if box.clickedButton() is box.button(QMessageBox.Cancel):
+                return
+            trash = box.clickedButton() is both
+        failed = []
+        for job in reversed(jobs):
+            if trash and job in made and not self._trash_song(job):
+                failed.append(job.title)
                 continue
             r = self._row(job)
             self.jobs.pop(r)
             self.table.removeRow(r)
         self._progress_max()
+        if failed:
+            QMessageBox.warning(self, "Remove", "Couldn't move these to the Recycle Bin (open in the "
+                                "Edit tab, or a file in use?): " + ", ".join(failed))
+
+    def _trash_song(self, job: Job) -> bool:
+        """Move a made song's folder (and its "(no AI)" twin) to the Recycle Bin.
+        Not while it's open in the editor."""
+        from PySide6.QtCore import QFile
+        outer = outer_of(job.sm)
+        open_sm = getattr(self.editor, "sm", None)
+        if open_sm is not None and outer.resolve() in open_sm.path.resolve().parents:
+            return False
+        ok = True
+        for d in (outer, outer.parent / f"{outer.name} (no AI)"):
+            if d.is_dir():
+                res = QFile.moveToTrash(str(d))
+                ok = (res[0] if isinstance(res, tuple) else bool(res)) and ok
+        return ok
 
     def clear_finished(self):
         for job in reversed(list(self.jobs)):
@@ -1319,12 +1479,177 @@ class Window(QMainWindow):
         self._progress_max()
         self.progress.setValue(0)
 
+    # ---------------------------------------------------------------- artwork
+    def _details_tab(self) -> QWidget:
+        self._art_dir = Path(tempfile.mkdtemp(prefix="beatsmith-art-"))
+        self.art_finder = ArtFinder(self._art_dir)
+        self.art_finder.done.connect(self._art_found)
+        sc = QScrollArea()
+        sc.setWidgetResizable(True)
+        w = QWidget()
+        v = QVBoxLayout(w)
+        self.art_status = QLabel()
+        self.art_status.setWordWrap(True)
+        v.addWidget(self.art_status)
+        pics = QHBoxLayout()
+        self.art_views = {}
+        for tag, (w_, h_), name in (("JACKET", (110, 110), "Jacket"), ("BANNER", (280, 110), "Banner"),
+                                    ("BACKGROUND", (146, 110), "Background")):
+            col = QVBoxLayout()
+            lab = QLabel()
+            lab.setFixedSize(w_, h_)
+            lab.setAlignment(Qt.AlignCenter)
+            lab.setStyleSheet("border: 1px solid #999; background: #222; color: #aaa;")
+            col.addWidget(lab)
+            col.addWidget(QLabel(name), alignment=Qt.AlignHCenter)
+            col.addStretch()
+            pics.addLayout(col)
+            self.art_views[tag] = lab
+        pics.addStretch()
+        v.addLayout(pics)
+        btns = QHBoxLayout()
+        self.art_pick = QPushButton("Choose picture…")
+        self.art_pick.setToolTip("Use a picture from your computer for this song's banner, background and jacket.")
+        self.art_pick.clicked.connect(self._art_choose)
+        self.art_lookup = QPushButton("Look up online")
+        self.art_lookup.setToolTip("Sends this song's title and artist to these sites and downloads the cover "
+                                   "it finds; each address is listed below.\n\n"
+                                   + "\n".join(f"{what}: {where}" for what, where in artwork.ONLINE_SOURCES))
+        self.art_lookup.clicked.connect(lambda: [self.find_art(j, online=True) for j in self.selected_jobs()
+                                                 if j.status != EARLIER])
+        self.art_clear = QPushButton("No artwork")
+        self.art_clear.setToolTip("Leave this song's banner, background and jacket empty.")
+        self.art_clear.clicked.connect(self._art_none)
+        for b in (self.art_pick, self.art_lookup, self.art_clear):
+            btns.addWidget(b)
+        btns.addStretch()
+        v.addLayout(btns)
+        self.art_log_view = QLabel()
+        self.art_log_view.setWordWrap(True)
+        self.art_log_view.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.art_log_view.setStyleSheet("color: gray;")
+        v.addWidget(self.art_log_view)
+        self.info_label = QLabel()
+        self.info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.info_label.setWordWrap(True)
+        v.addWidget(self.info_label)
+        v.addStretch()
+        sc.setWidget(w)
+        return sc
+
+    def _song_folder(self, job: Job) -> Path | None:
+        text = self.out_edit.text().strip()
+        return song_dirs(Path(text), out_title(job))[1] if text else None
+
+    def find_art(self, job: Job, online: bool | None = None, image: Path | None = None):
+        """Look for a song's artwork in the background (ArtFinder)."""
+        if not self.art.isChecked() and image is None and not online:
+            job.art_state = ""
+            return
+        job.art_state = "looking"
+        online = self.art_online.isChecked() if online is None else online
+        # a button press asks for a fresh picture, so art in the song folder doesn't count then
+        song = None if (online or image) else self._song_folder(job)
+        self.art_finder.find(job, song, online, image)
+        if self.selected_jobs()[:1] == [job]:
+            self.show_details(job)
+
+    def find_art_all(self):
+        for job in self.jobs:
+            if job.status != EARLIER and job.art_state in ("", "none"):
+                self.find_art(job)
+
+    def _art_found(self, job: Job, pic, where: dict, log: str):
+        if job not in self.jobs:
+            return
+        job.art_log = (job.art_log + "\n" + log).strip() if log else job.art_log
+        if where.get("from") == artwork.KEPT:
+            job.art_state, job.art_image = "kept", None
+        elif pic is None:
+            if job.art_state == "looking" and not job.art_image:
+                job.art_state = "none"
+            elif job.art_image:                    # nothing new found: keep what it had
+                job.art_state = "found"
+        else:
+            job.art_state, job.art_image, job.art_where = "found", pic, where
+        if self.selected_jobs()[:1] == [job]:
+            self.show_details(job)
+
+    def _art_from(self, job: Job) -> str:
+        return artwork.describe(job.art_where)
+
+    def _art_choose(self):
+        jobs = [j for j in self.selected_jobs() if j.status != EARLIER]
+        if not jobs:
+            return
+        f, _ = QFileDialog.getOpenFileName(self, "Choose a picture", str(jobs[0].path.parent),
+                                           "Pictures (*.png *.jpg *.jpeg *.bmp *.gif *.webp)")
+        if f:
+            for j in jobs:
+                self.find_art(j, online=False, image=Path(f))
+
+    def _art_none(self):
+        for j in self.selected_jobs():
+            if j.status != EARLIER:
+                j.art_state, j.art_image, j.art_where = "cleared", None, {}
+        self.show_details(self.selected_jobs()[0] if self.selected_jobs() else None)
+
+    def show_details(self, job: Job | None):
+        """The Details tab: what the song file says, and its artwork."""
+        for b in (self.art_pick, self.art_lookup, self.art_clear):
+            b.setEnabled(bool(job) and job.status != EARLIER)
+        if job is None:
+            self.info_label.setText("")
+            self.art_status.setText("")
+            self.art_log_view.setText("")
+            for lab in self.art_views.values():
+                lab.clear()
+            return
+        rows = [("Title", job.title), ("Artist", job.artist or "(none)")] + song_info(job.path)
+        self.info_label.setText("<table>" + "".join(
+            f"<tr><td><b>{html.escape(k)}</b>&nbsp;&nbsp;</td><td>{html.escape(v)}</td></tr>" for k, v in rows)
+            + "</table>")
+        # what to show: the song folder's art once it's made, else the picture found for it
+        made = job.status in (DONE, EARLIER) and job.sm is not None
+        files = {}
+        if made or job.art_state == "kept":
+            folder, title = (job.sm.parent, job.sm.stem) if made else (self._song_folder(job), out_title(job))
+            names = artwork.file_names(title)
+            if folder is not None and all((folder / n).is_file() for n in names.values()):
+                files = {tag: folder / n for tag, n in names.items()}
+        elif job.art_state == "found" and job.art_image:
+            files = {tag: job.art_image.parent / f"{tag}.png" for tag in self.art_views}
+        if made:
+            status = "In the song folder." if files else "This song was made without artwork."
+        else:
+            status = {
+                "": "Artwork is off (Options > Add song artwork)." if not self.art.isChecked() else "",
+                "looking": "Looking for artwork…",
+                "found": f"From {self._art_from(job)}. It's used when the charts are made.",
+                "kept": "Already in the song folder from an earlier run; it's kept.",
+                "none": "No artwork found: no picture beside the song or in its tags"
+                        + ("" if self.art_online.isChecked() else ", and online lookup is off")
+                        + ". Choose a picture or look it up online.",
+                "cleared": "No artwork for this song.",
+            }[job.art_state]
+        self.art_status.setText(status)
+        for tag, lab in self.art_views.items():
+            f = files.get(tag)
+            pm = QPixmap(str(f)) if f and f.is_file() else QPixmap()
+            if pm.isNull():
+                lab.clear()
+                lab.setText("—")
+            else:
+                lab.setPixmap(pm.scaled(lab.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.art_log_view.setText(html.escape(job.art_log).replace("\n", "<br>"))
+
     def show_selected(self):
         jobs = self.selected_jobs()
         job = jobs[0] if jobs else None
         self._scope()
         self.refresh_advanced()                      # its "made" columns
         self.log_view.setPlainText(job.log if job else "")
+        self.show_details(job)
         self.open_btn.setEnabled(bool(job and job.sm))
         self.edit_btn.setEnabled(bool(job and job.sm and job.sm.is_file()))
         stats = side(job.sm, ".stats.md") if job and job.sm else None
@@ -1407,11 +1732,16 @@ class Window(QMainWindow):
             self.statusBar().showMessage(f"Finished: {done} done, {failed} failed. Charts are in {self.out}")
 
     def _launch(self, job: Job, title: str):
-        args = [str(job.path), "--out", str(self.out), "--title", title] + self.args_for(job.settings)
+        args = [str(job.path), "--out", str(self.out), "--title", show_title(job)] + self.args_for(job.settings)
         if job.artist:
             args += ["--artist", job.artist]
         if job.bpm > 0:
             args += ["--bpm", f"{job.bpm:g}"]
+        if self.art.isChecked():
+            if job.art_state == "found" and job.art_image and job.art_image.is_file():
+                args += ["--art-image", str(job.art_image), "--art-from", self._art_from(job)]
+            elif job.art_state == "cleared":
+                args.append("--no-art")
         if getattr(sys, "frozen", False):
             prog, pre = sys.executable, ["--run-stepgen"]
         else:
@@ -1445,9 +1775,10 @@ class Window(QMainWindow):
                 kept.append(line)
         job.log += "".join(l + "\n" for l in kept)
         for line in kept:
-            m = re.match(r"progress: (analyzing|charting|separating) (.*)", line)
+            m = re.match(r"progress: (analyzing|charting|separating|finding) (.*)", line)
             if m:
-                self._set_status(job, {"analyzing": "Analyzing…", "separating": "Separating vocals…"}.get(
+                self._set_status(job, {"analyzing": "Analyzing…", "separating": "Separating vocals…",
+                                       "finding": "Finding artwork…"}.get(
                     m.group(1), f"Charting {m.group(2)}…"), "#2471a3")
             m = re.match(r"\s+(\w+)\s+meter\s+(\d+)", line)
             if m:
@@ -1520,13 +1851,19 @@ def old_groove(d: dict) -> int:
 SHORTEN = [("Full song", 0), ("Try to shorten to about 1:30", 90), ("Try to shorten to about 2:00", 120)]
 
 
-def out_title(job) -> str:
-    """The folder and chart name a song is made under: a shortened one is a
-    separate song, '<title> (short)'."""
-    title = safe_name(job.title)
+def show_title(job) -> str:
+    """The title StepMania shows: a shortened song is a separate one,
+    '<title> (short)'."""
+    title = job.title.strip()
     if job.settings.get("shorten") and not title.endswith(" (short)"):
         title += " (short)"
     return title
+
+
+def out_title(job) -> str:
+    """The folder and chart name a song is made under: its title in plain
+    ASCII (layout.file_name), which StepMania can always load."""
+    return file_name(show_title(job), job.artist)
 
 
 def usable(w) -> bool:

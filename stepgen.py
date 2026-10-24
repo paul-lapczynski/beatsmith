@@ -35,7 +35,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # chartstats.py
-from layout import song_dirs
+from layout import file_name, song_dirs
 import librosa
 import soundfile as sf
 
@@ -2029,7 +2029,7 @@ def sm_escape(s: str) -> str:
 
 
 def write_sm(path: Path, title: str, artist: str, music: str, a: Analysis,
-             charts: list[tuple[DiffSpec, list[Note], int]]) -> None:
+             charts: list[tuple[DiffSpec, list[Note], int]], art: dict[str, str] | None = None) -> None:
     # preview: the loudest 12 s window
     win = int(12 * SR / HOP)
     csum = np.convolve(a.rms, np.ones(win), "valid")
@@ -2038,8 +2038,15 @@ def write_sm(path: Path, title: str, artist: str, music: str, a: Analysis,
         f"#TITLE:{sm_escape(title)};",
         "#SUBTITLE:;",
         f"#ARTIST:{sm_escape(artist)};",
+        # other scripts in the title or artist: a plain-letters version too, for
+        # themes that sort by it or have no font for them
+        *([f"#TITLETRANSLIT:{sm_escape(file_name(title))};"] if not title.isascii() else []),
+        *([f"#ARTISTTRANSLIT:{sm_escape(file_name(artist))};"] if not artist.isascii() else []),
         f"#CREDIT:stepgen {PROFILE_NAME};",
-        "#BANNER:;", "#BACKGROUND:;", "#CDTITLE:;",
+        f"#BANNER:{sm_escape((art or {}).get('BANNER', ''))};",
+        f"#BACKGROUND:{sm_escape((art or {}).get('BACKGROUND', ''))};",
+        "#CDTITLE:;",
+        *([f"#JACKET:{sm_escape(art['JACKET'])};"] if art and art.get("JACKET") else []),
         f"#MUSIC:{music};",
         f"#OFFSET:{-a.t0:.3f};",
         f"#SAMPLESTART:{sample_start:.3f};",
@@ -2570,15 +2577,18 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
              bpm: float | None = None, seed: int = 1, clicks: bool = False,
              specs: list[DiffSpec] | None = None, keep_format: bool = False,
              stems: bool = False, follow: dict[str, float] | None = None, backoff: bool = False,
-             shorten: float = 0.0, keep_verses: bool = False, lyrics: bool = False) -> Path:
+             shorten: float = 0.0, keep_verses: bool = False, lyrics: bool = False,
+             art: bool = True, art_online: bool = False, art_image: Path | None = None,
+             art_from: str | None = None) -> Path:
     title = title or src.stem
+    name = file_name(title, artist)    # plain ASCII for the folder and files; the .sm keeps `title`
     # the StepMania song folder holds only the chart and the song; stats,
     # settings, stems and the rest sit one level up (layout.py)
-    folder, song = song_dirs(out_dir, title)
+    folder, song = song_dirs(out_dir, name)
     song.mkdir(parents=True, exist_ok=True)
     # the chart is timed against the exact file StepMania will play
     keep_format = keep_format and not shorten        # a shortened song is a new file
-    music = src.name if keep_format else f"{title}.ogg"
+    music = src.name if keep_format and src.name.isascii() else f"{name}{src.suffix if keep_format else '.ogg'}"
     if keep_format:
         if src.resolve() != (song / music).resolve():
             shutil.copy2(src, song / music)
@@ -2737,45 +2747,57 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
             beat_only.append((spec, plain, meter_for(plain, a, spec)))
 
     charts.sort(key=lambda c: SM_DIFFICULTIES.index(c[0].name))
-    sm = song / f"{title}.sm"
-    for old in (folder / f"{title}.sm", folder / music):
+    sm = song / f"{name}.sm"
+    for old in (folder / f"{name}.sm", folder / music):
         # the same song made before the layout change: its copies move into the song folder
         if old.is_file() and old.resolve() != src.resolve() and (
                 old.suffix != ".sm" or "#CREDIT:stepgen" in old.read_text(encoding="utf-8", errors="replace")[:4000]):
             old.unlink()
-    write_sm(sm, title, artist, music, a, charts)
+    # banner, background and jacket (artwork.py): the song's own cover art,
+    # looked up online only when asked
+    pics, art_rec = {}, {"from": None}
+    if art:
+        import artwork
+        try:
+            pics, art_rec = artwork.make(src, song, title, artist, art_online,
+                                         image=art_image, image_from=art_from, name=name)
+        except Exception as e:                   # never worth losing the chart over
+            print(f"  artwork: skipped ({e})")
+    write_sm(sm, title, artist, music, a, charts, pics)
     # kept in a subfolder so StepMania doesn't list it as a second song
-    compare = folder / COMPARE_DIR / f"{title}.sm"
+    compare = folder / COMPARE_DIR / f"{name}.sm"
     if beat_only:
         compare.parent.mkdir(exist_ok=True)
-        write_sm(compare, title, artist, f"../{title}/{music}", a, beat_only)
+        write_sm(compare, title, artist, f"../{name}/{music}", a, beat_only)
     elif compare.is_file():
         compare.unlink()
     if no_ai:
         # temporary: the whole song again without AI assist, as its own song
         # so both can be played and compared in StepMania
         t0 = f"{title} (no AI)"
-        _, song0 = song_dirs(out_dir, t0)
+        _, song0 = song_dirs(out_dir, file_name(t0, artist))
         song0.mkdir(parents=True, exist_ok=True)
         if not (song0 / music).is_file() or (song0 / music).stat().st_size != (song / music).stat().st_size:
             shutil.copy2(song / music, song0 / music)
+        for f in pics.values():
+            shutil.copy2(song / f, song0 / f)
         no_ai.sort(key=lambda c: SM_DIFFICULTIES.index(c[0].name))
-        write_sm(song0 / f"{t0}.sm", t0, artist, music, a, no_ai)
+        write_sm(song0 / f"{file_name(t0, artist)}.sm", t0, artist, music, a, no_ai, pics)
         print("  without AI: " + ", ".join(f"{sp.name} meter {m}  {len(n)} notes" for sp, n, m in no_ai))
-        print(f"  -> {song0 / f'{t0}.sm'}")
+        print(f"  -> {song0 / f'{file_name(t0, artist)}.sm'}")
     if clicks:
-        write_clicks(folder / f"{title}.clicks.wav", song / music, charts)
-    write_stats(folder / f"{title}.stats.md", sm, a, repeats, seed, sections, follows, ais, made_with)
+        write_clicks(folder / f"{name}.clicks.wav", song / music, charts)
+    write_stats(folder / f"{name}.stats.md", sm, a, repeats, seed, sections, follows, ais, made_with)
     # how this chart was made, so llm_review.py can suggest an exact re-run
     ai_info = {"ai_assist": ais, "ai_model": ai_assist.MODEL.stem} if ais else {}
-    (folder / f"{title}.stepgen.json").write_text(json.dumps({
+    (folder / f"{name}.stepgen.json").write_text(json.dumps({
         "source": str(src.resolve()), "title": title, "artist": artist, "out": str(out_dir.resolve()),
         "profile": PROFILE_NAME, "seed": seed, "bpm": bpm, "set": RUN_SETS, "easy": RUN_EASY,
         "keep_format": keep_format, "stems": stems, "follow": follow or {}, "backoff": backoff,
         "shorten": {"target": shorten, "keep_verses": keep_verses, "kept_bars": cut.keep,
                     "summary": cut.describe()} if cut
         else ({"target": shorten, "keep_verses": keep_verses, "kept_bars": None} if shorten else None),
-        "lyrics": bool(words),
+        "lyrics": bool(words), "art": {"on": art, "online": art_online} | art_rec,
         "sections": [{k: sec[k] for k in ("start", "end", "letter", "label", "intensity", "vocals", "lyrics")
                       if k in sec}
                      | {"follow": {d: f[i] for d, f in follows.items()}} for i, sec in enumerate(sections)]}
@@ -2854,6 +2876,16 @@ def main(argv=None) -> int:
                     help="where vocal separation, AI verse detection and AI assist run: auto = "
                          "the GPU when there is one (NVIDIA or Apple Silicon), else the CPU "
                          "(the default; see accel.py)")
+    ap.add_argument("--no-art", action="store_true",
+                    help="leave the banner, background and jacket empty (by default they're made "
+                         "from an image beside the song or the cover art in its tags)")
+    ap.add_argument("--art-online", action="store_true",
+                    help="when the song has no cover art, look it up by title and artist on "
+                         "musicbrainz.org / coverartarchive.org, else itunes.apple.com (each "
+                         "address is printed as it's fetched)")
+    ap.add_argument("--art-image", type=Path, metavar="IMAGE",
+                    help="make the artwork from this picture instead of looking for one")
+    ap.add_argument("--art-from", help=argparse.SUPPRESS)      # where the app found --art-image
     args = ap.parse_args(argv)
     if args.device:
         os.environ["STEPGEN_DEVICE"] = args.device       # the add-ons' own Python inherits it
@@ -2889,7 +2921,8 @@ def main(argv=None) -> int:
         generate(src, args.out, title,
                  args.artist, args.bpm, args.seed, args.clicks, specs, args.keep_format,
                  args.stems, {k.strip(): float(v) for k, v in (f.split("=", 1) for f in args.follow)},
-                 args.backoff, args.shorten, args.keep_verses, args.lyrics)
+                 args.backoff, args.shorten, args.keep_verses, args.lyrics,
+                 not args.no_art, args.art_online, args.art_image, args.art_from)
     return 0
 
 
