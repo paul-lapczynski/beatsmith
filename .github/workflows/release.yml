@@ -11,6 +11,11 @@ on:
     paths: ["packaging/**", ".github/workflows/release.yml"]
   workflow_dispatch:
 
+concurrency:
+  # a newer push to the same PR or tag replaces a build still running
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 

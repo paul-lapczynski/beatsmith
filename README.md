@@ -1,3 +1,5 @@
+<p align="center"><img src="branding/beatsmith-512.png" alt="BeatSmith logo" width="256"></p>
+
 # BeatSmith
 
 Turns a song into a StepMania `.sm` file with Easy, Medium and Hard
