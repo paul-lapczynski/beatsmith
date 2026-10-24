@@ -18,6 +18,7 @@ examples/
 AppDist/
 _AppDist/
 shorten-tests*/
+song-data/
 
 # Commercial charts used for calibration
 calibration/

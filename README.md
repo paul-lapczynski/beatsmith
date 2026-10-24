@@ -27,7 +27,7 @@ StepMania 5, ITGmania and OutFox). Everything else stepgen keeps about the
 song (stats, the settings it was made with, stems, compare charts, the
 editor's backup) goes in its own data folder, under
 `songs/<output folder name>-<id>/My Song/` (on Windows in
-`%APPDATA%\stepgen\stepgen`). Songs made with older versions, with the
+`%APPDATA%\stepgen\stepgen`; run from source, it's `song-data/` in the source folder). Songs made with older versions, with the
 StepMania folder inside the song's folder or everything in one folder,
 still open, and are moved to this layout when made again. Several files at
 once: `python3 stepgen.py *.mp3`.

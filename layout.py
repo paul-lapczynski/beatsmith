@@ -5,6 +5,8 @@
                                              Songs/<group>/ itself
     <app data>/songs/<output folder>-<id>/<title>/
                                              stats, settings, stems, compare charts...
+                                             (song-data/ beside this file when run
+                                             from source rather than installed)
 
 Songs made before this have the rest in <output folder>/<title>/ and the
 StepMania folder inside it (<output folder>/<title>/<title>/), or, older
@@ -83,12 +85,22 @@ def data_dir() -> Path:
     return base / "stepgen" / "stepgen"
 
 
+def songs_data() -> Path:
+    """Where the stats, settings and the rest of made songs go: the app's
+    data folder when installed, song-data/ in the source folder when run
+    from source, so it's at hand while developing (STEPGEN_DATA overrides
+    both)."""
+    if getattr(sys, "frozen", False) or os.environ.get("STEPGEN_DATA"):
+        return data_dir() / "songs"
+    return Path(__file__).resolve().parent / "song-data"
+
+
 def work_root(out: Path) -> Path:
     """Where the stats, settings and the rest of an output folder's songs
     go: one folder per output folder, named after it so it's easy to find."""
     full = os.path.normcase(os.path.abspath(out))
     tag = hashlib.sha1(full.encode("utf-8")).hexdigest()[:8]
-    return data_dir() / "songs" / f"{_plain(Path(os.path.abspath(out)).name) or 'songs'}-{tag}"
+    return songs_data() / f"{_plain(Path(os.path.abspath(out)).name) or 'songs'}-{tag}"
 
 
 def song_dirs(out: Path, title: str) -> tuple[Path, Path]:
