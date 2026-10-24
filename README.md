@@ -253,9 +253,10 @@ and prefers skipping music the song plays again elsewhere. A song with no
 clean place to cut is left full length, so it may land over the target.
 The jumps and what was kept are printed and saved in `<title>.stepgen.json`.
 **Keep all verses** (`--keep-verses`) only lets it skip choruses, the intro
-and outro, and quiet breakdowns. Section names are a guess (a verse can be
-named a build or a bridge), so every part that isn't one of those stays,
-and many songs can't be shortened much with it on.
+and outro, and quiet breakdowns. In the app it needs **AI verse detection**,
+which reads the lyrics to know which parts are verses; from the music
+alone a verse can be named a build or a bridge, so every part that isn't
+one of those would stay and most songs couldn't be shortened at all.
 
 **Backoff** (`--backoff`, or "Cut the easier charts out of the hardest" in
 the app) makes the hardest chart first and cuts the easier ones out of it,
@@ -307,8 +308,11 @@ Right as the tune rises and back toward Left as it falls.
   the editor's **Compare with beat only**.
 - `--stems` separates the vocals first with Demucs, so the arrows follow
   the singing rather than everything melodic, and only while someone is
-  singing. It's optional and not in the installer: the app's **Download
-  vocal separation** button fetches it (about 1 GB, into
+  singing. In the app this is **Enable melody analysis**: Arrows follow,
+  its per-section sliders and AI verse detection only work while it's on
+  (the dial test found following without stems moves steps but not toward
+  the tune). It's optional and not in the installer: ticking it the first
+  time, or **Download melody analysis**, fetches it (about 1 GB, into
   `%LOCALAPPDATA%\stepgen\addons`). Separating takes a minute or two per
   song, and the stems are kept in a `.stems` folder inside the song folder
   (about 15 MB, ignored by StepMania) so it only happens once. Without

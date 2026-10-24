@@ -340,13 +340,14 @@ class Window(QMainWindow):
                                 "song; the full one isn't touched.")
         self.keep_verses = QCheckBox("Keep all verses")
         self.keep_verses.setToolTip("When shortening: only skip choruses, the intro and outro, and quiet "
-                                    "breakdowns. Any part that might be a verse stays, so many songs "
-                                    "can't be shortened much.")
+                                    "breakdowns, so every verse stays. Uses AI verse detection (under "
+                                    "Melody analysis) to know which parts are verses: from the music "
+                                    "alone it can't tell, and would keep nearly everything.")
         row = QHBoxLayout()
         row.addWidget(self.shorten, 1)
         row.addWidget(self.keep_verses)
         g.addRow("Length", row)
-        self.shorten.currentIndexChanged.connect(lambda i: self.keep_verses.setEnabled(i > 0))
+        self.shorten.currentIndexChanged.connect(self._melody_state)
         self.keep_verses.setEnabled(False)
         v.addWidget(style)
         self.style_box = style
@@ -438,8 +439,21 @@ class Window(QMainWindow):
             self.target[d].valueChanged.connect(self._high_warning)
         feel_box = feel                 # added after the melody box, below
 
-        mel = QGroupBox("Follow the melody (try it out)")
+        mel = QGroupBox("Melody analysis (try it out)")
         gl = QGridLayout(mel)
+        # one opt-in: it separates the vocals (a download the first time), and
+        # everything below it reads the separated vocals
+        self.stems_box = QCheckBox("Enable melody analysis (separates the vocals so the arrows can follow "
+                                   "the singing; about a minute per song)")
+        self.stems_box.setToolTip("Uses Demucs to split each song into vocals, drums, bass and the rest. "
+                                  "Arrows follow and AI verse detection work from the vocals. Kept in a "
+                                  ".stems folder per song. The first time, it offers the download "
+                                  "(about 1 GB) and shows where every part comes from.")
+        self.stems_btn = QPushButton("Download melody analysis (about 1 GB)…")
+        self.stems_btn.clicked.connect(lambda: self.install_addon("stems"))
+        self.stems_box.toggled.connect(self._melody_toggled)
+        gl.addWidget(self.stems_box, 0, 0, 1, 3)
+        gl.addWidget(self.stems_btn, 0, 3)
         self.follow = QSlider(Qt.Horizontal, minimum=0, maximum=100, value=0)
         self.follow.setTickInterval(25)
         self.follow.setTickPosition(QSlider.TicksBelow)
@@ -448,16 +462,18 @@ class Window(QMainWindow):
         self.follow.setToolTip("How much the arrows follow the tune instead of the drums. Each kind "
                                "of section takes its share of this; open \"Per section\" to see or "
                                "change it.")
-        gl.addWidget(QLabel("<b>Arrows follow</b>"), 0, 0)
-        gl.addWidget(QLabel("the beat"), 0, 1, alignment=Qt.AlignRight)
-        gl.addWidget(self.follow, 0, 2)
-        gl.addWidget(QLabel("the tune"), 0, 3)
+        self.melody_widgets = [QLabel("<b>Arrows follow</b>"), QLabel("the beat"), self.follow, QLabel("the tune")]
+        gl.addWidget(self.melody_widgets[0], 1, 0)
+        gl.addWidget(self.melody_widgets[1], 1, 1, alignment=Qt.AlignRight)
+        gl.addWidget(self.follow, 1, 2)
+        gl.addWidget(self.melody_widgets[3], 1, 3)
         # per kind of section: follows the main slider (scaled) until moved by hand
         self.sec_toggle = QPushButton("Per section ▸")
         self.sec_toggle.setFlat(True)
         self.sec_toggle.setStyleSheet("text-align: left;")
         self.sec_toggle.setCheckable(True)
-        gl.addWidget(self.sec_toggle, 1, 0, 1, 2, alignment=Qt.AlignLeft)
+        gl.addWidget(self.sec_toggle, 2, 0, 1, 2, alignment=Qt.AlignLeft)
+        self.melody_widgets.append(self.sec_toggle)
         self.sec_box = QWidget()
         sg = QGridLayout(self.sec_box)
         sg.setContentsMargins(16, 0, 0, 0)
@@ -484,24 +500,19 @@ class Window(QMainWindow):
         self.sec_box.setVisible(False)
         self.sec_toggle.toggled.connect(lambda on: (self.sec_box.setVisible(on),
                                                      self.sec_toggle.setText("Per section " + ("▾" if on else "▸"))))
-        gl.addWidget(self.sec_box, 2, 0, 1, 4)
+        gl.addWidget(self.sec_box, 3, 0, 1, 4)
+        self.melody_widgets.append(self.sec_box)
         self._follow_auto()
-        self.stems_box = QCheckBox("Separate the vocals first (better following, about a minute per song)")
-        self.stems_box.setToolTip("Uses Demucs to split each song into vocals, drums, bass and the rest, "
-                                  "so the arrows follow the singing. Kept in a .stems folder per song.")
-        self.stems_btn = QPushButton("Download vocal separation (about 1 GB)…")
-        self.stems_btn.clicked.connect(lambda: self.install_addon("stems"))
-        gl.addWidget(self.stems_box, 3, 0, 1, 3)
-        gl.addWidget(self.stems_btn, 3, 3)
         self.lyrics_box = QCheckBox("Use AI verse detection (reads the lyrics to tell chorus from verse)")
         self.lyrics_box.setToolTip(
             "Reads the words off the separated vocals with a speech model (Whisper, on the CPU), so "
             "a part whose words come back is the chorus and new words are a verse. Sections are "
             "named from that: it changes how much each part follows the melody and what Shorten "
-            "and Keep all verses treat as a verse. Needs vocal separation; about a minute per song, "
+            "and Keep all verses treat as a verse. Part of melody analysis; about a minute per song, "
             "kept with the stems.")
         self.lyrics_btn = QPushButton("Download AI verse detection (about 650 MB)…")
         self.lyrics_btn.clicked.connect(lambda: self.install_addon("lyrics"))
+        self.lyrics_box.toggled.connect(self._melody_state)
         gl.addWidget(self.lyrics_box, 4, 0, 1, 3)
         gl.addWidget(self.lyrics_btn, 4, 3)
         self._stems_ready()
@@ -559,19 +570,48 @@ class Window(QMainWindow):
     def _stems_ready(self) -> bool:
         import addons
         ok = addons.installed("stems")
-        self.stems_box.setEnabled(ok)
+        self._stems_ok = ok
         if not ok:
             self.stems_box.setChecked(False)
         self.stems_btn.setVisible(not ok)
         lyr = addons.installed("lyrics")
-        self.lyrics_box.setEnabled(ok and lyr)
+        self._lyrics_ok = ok and lyr
         if not (ok and lyr):
             self.lyrics_box.setChecked(False)
         self.lyrics_btn.setVisible(not lyr)
         self.lyrics_btn.setEnabled(ok)
-        self.lyrics_btn.setToolTip("" if ok else "Download vocal separation first: the lyrics are read "
+        self.lyrics_btn.setToolTip("" if ok else "Download melody analysis first: the lyrics are read "
                                    "off the separated vocals.")
+        self._melody_state()
         return ok
+
+    def _melody_toggled(self, on: bool):
+        """Turning melody analysis on without the add-on offers the download
+        (it ticks itself once that's done)."""
+        if on and not getattr(self, "_stems_ok", False):
+            self.stems_box.blockSignals(True)
+            self.stems_box.setChecked(False)
+            self.stems_box.blockSignals(False)
+            if not self._loading:
+                self.install_addon("stems")
+        self._melody_state()
+
+    def _melody_state(self, *_):
+        """What melody analysis being on or off makes usable: Arrows follow
+        and AI verse detection read the separated vocals, and Keep all verses
+        needs AI verse detection to know what a verse is."""
+        if not hasattr(self, "lyrics_box") or not hasattr(self, "keep_verses"):
+            return
+        on = self.stems_box.isChecked()
+        for wdg in getattr(self, "melody_widgets", []):
+            wdg.setEnabled(on)
+        self.lyrics_box.setEnabled(on and getattr(self, "_lyrics_ok", False))
+        if not on:
+            self.lyrics_box.setChecked(False)
+        verses = self.shorten.currentIndex() > 0 and self.lyrics_box.isChecked()
+        self.keep_verses.setEnabled(verses)
+        if not verses:
+            self.keep_verses.setChecked(False)
 
     def install_addon(self, kind: str):
         """Download an optional add-on, after showing exactly where every part
@@ -607,7 +647,7 @@ class Window(QMainWindow):
             self._stems_ready()
             if addons.installed(kind):
                 (self.stems_box if kind == "stems" else self.lyrics_box).setChecked(
-                    kind == "stems" or usable(self.stems_box))
+                    kind == "stems" or self.stems_box.isChecked())
                 self.statusBar().showMessage(f"{name} is ready.")
             else:
                 self.statusBar().showMessage(f"{name} download failed (code {code}); see the log.")
@@ -826,7 +866,6 @@ class Window(QMainWindow):
             self.seed.setValue(int(d.get("seed", 1)))
             self.bpm.setValue(float(d.get("bpm") or 0))
             self.shorten.setCurrentIndex(next((i for i, (_, v) in enumerate(SHORTEN) if v == d.get("shorten", 0)), 0))
-            self.keep_verses.setChecked(bool(d.get("keep_verses")))
             for k, v in d.get("targets", {}).items():
                 if k in self.target:
                     self.target_on[k].setChecked(v is not None)
@@ -845,8 +884,9 @@ class Window(QMainWindow):
                     sl.setValue(int(d["sections"][k]))
                     sl.blockSignals(False)
             self._follow_auto()
-            self.stems_box.setChecked(bool(d.get("stems")) and usable(self.stems_box))
-            self.lyrics_box.setChecked(bool(d.get("lyrics")) and usable(self.lyrics_box))
+            self.stems_box.setChecked(bool(d.get("stems")) and self._stems_ok)
+            self.lyrics_box.setChecked(bool(d.get("lyrics")) and self._lyrics_ok and self.stems_box.isChecked())
+            self.keep_verses.setChecked(bool(d.get("keep_verses")) and self.keep_verses.isEnabled())
             self.backoff.setChecked(bool(d.get("backoff")))
             self.overrides = dict(d.get("overrides", {}))
             self.refresh_advanced()
@@ -863,12 +903,12 @@ class Window(QMainWindow):
             moved.insert(0, f"groove {old_groove(d)}%")
         if moved:
             parts.append(", ".join(moved))
-        if d.get("follow") or d.get("sections"):
+        if d.get("stems") and (d.get("follow") or d.get("sections")):
             parts.append(f"follow {d.get('follow', 0)}%" + ("*" if d.get("sections") else ""))
         if d.get("ai"):
             parts.append(f"AI {d['ai']}%")
         if d.get("stems"):
-            parts.append("vocals")
+            parts.append("melody")
         if d.get("lyrics"):
             parts.append("AI verses")
         if d.get("backoff"):
@@ -892,10 +932,10 @@ class Window(QMainWindow):
             args += ["--bpm", f"{d['bpm']:g}"]
         if d.get("shorten"):
             args += ["--shorten", str(d["shorten"])]
-            if d.get("keep_verses"):
+            if d.get("keep_verses") and d.get("lyrics") and d.get("stems"):
                 args.append("--keep-verses")
         sets = [f"{k}.target_meter={v:g}" for k, v in d.get("targets", {}).items() if v is not None]
-        if d.get("follow"):
+        if d.get("follow") and d.get("stems"):         # Arrows follow is part of melody analysis
             sets += [f"{x}.melody_follow={d['follow'] / 100:g}" for x in DIFFS]
         if d.get("ai"):
             sets += [f"{x}.ai_assist={d['ai'] / 100:g}" for x in DIFFS]
@@ -909,11 +949,11 @@ class Window(QMainWindow):
             args += ["--easy", f"groove={groove_easy(old_groove(d)):g}"]
         if d.get("stems"):
             args.append("--stems")
-        if d.get("lyrics"):
+        if d.get("lyrics") and d.get("stems"):
             args.append("--lyrics")
         if d.get("backoff"):
             args.append("--backoff")
-        for k, v in d.get("sections", {}).items():
+        for k, v in (d.get("sections", {}) if d.get("stems") else {}).items():
             args += ["--follow", f"{k}={v / 100:g}"]
         if self.keep_format.isChecked():
             args.append("--keep-format")
@@ -1030,7 +1070,8 @@ class Window(QMainWindow):
                 self.sec_sliders[kind][0].setValue(int(v))      # marks it as set by hand
         self._follow_auto()
         self.stems_box.setChecked(st.value("stems", "false") == "true" and self._stems_ready())
-        self.lyrics_box.setChecked(st.value("lyrics", "false") == "true" and usable(self.lyrics_box))
+        self.lyrics_box.setChecked(st.value("lyrics", "false") == "true" and self._lyrics_ok
+                                   and self.stems_box.isChecked())
         self.backoff.setChecked(st.value("backoff", "false") == "true")
         self.overrides = json.loads(st.value("overrides", "{}"))
 
