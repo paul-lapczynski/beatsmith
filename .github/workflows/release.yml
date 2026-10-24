@@ -1,20 +1,23 @@
 # Builds the Windows installers (packaging/build.bat) and the macOS disk image
-# (packaging/build-mac.sh). Push a tag like v1.2.0 to publish a GitHub release with
+# (packaging/build-mac.sh). Every merge to main builds both, so a tag goes on a
+# commit known to build; push a tag like v1.2.0 to publish a GitHub release with
 # all of them attached. Pull requests that touch packaging, and "Run workflow" on
 # the Actions tab, make test builds kept as workflow artifacts.
 name: Release
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   pull_request:
     paths: ["packaging/**", ".github/workflows/release.yml"]
   workflow_dispatch:
 
 concurrency:
-  # a newer push to the same PR or tag replaces a build still running
+  # a newer push to the same PR replaces a build still running; every merge to
+  # main and every tag builds in full
   group: release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: write
