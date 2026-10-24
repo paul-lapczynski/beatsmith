@@ -116,16 +116,46 @@ def _same(a: str, b: str) -> bool:
     return _title_is(a, b)
 
 
+_MB_LAST = Path(__import__("tempfile").gettempdir()) / "beatsmith-musicbrainz-last"
+
+
+def _musicbrainz_turn():
+    """MusicBrainz allows about one request a second from a computer, and
+    several songs can be looking at once (the app and each chart being
+    made): they share a time stamp file to take turns."""
+    for _ in range(50):
+        try:
+            gap = time.time() - _MB_LAST.stat().st_mtime
+        except OSError:
+            gap = 99.0
+        if gap >= 1.2:
+            break
+        time.sleep(1.2 - gap + 0.05)
+    try:
+        _MB_LAST.touch()
+    except OSError:
+        pass
+
+
 def _get(url: str, log, accept: str = "application/json") -> bytes | None:
     log(f"  artwork: fetching {url}")
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept})
-    for attempt in range(2):
+    mb = urllib.parse.urlparse(url).hostname == "musicbrainz.org"
+    for attempt in range(4):
+        if mb:
+            _musicbrainz_turn()
         try:
             with urllib.request.urlopen(req, timeout=20) as r:
                 return r.read()
         except urllib.error.HTTPError as e:
-            if e.code == 503 and attempt == 0:      # MusicBrainz: over one request a second
-                time.sleep(1.5)
+            if e.code in (429, 503) and attempt < 3:       # too many requests: wait and try again
+                try:
+                    wait = min(15.0, float(e.headers.get("Retry-After") or 0)) or 2.0 * 2 ** attempt
+                except ValueError:
+                    wait = 2.0 * 2 ** attempt
+                log(f"  artwork: {urllib.parse.urlparse(url).hostname} is busy ({e.code}), "
+                    f"trying again in {wait:g} s")
+                time.sleep(wait)
                 continue
             if e.code != 404:
                 log(f"  artwork: {e.code} {e.reason}")
@@ -357,29 +387,20 @@ def online(title: str, artist: str, log=print, album: str = "") -> tuple[bytes, 
     the same artist, else a photo of the artist. The record says what it
     matched, to check in the Details tab."""
     _searched.clear()
-    last_mb = [0.0]
-
-    def mb(fn):
-        def call(*args, **kw):
-            time.sleep(max(0.0, 1.1 - (time.monotonic() - last_mb[0])))    # one request a second
-            last_mb[0] = time.monotonic()
-            return fn(*args, **kw)
-        return call
-
     MB, IT, DZ = "MusicBrainz / Cover Art Archive", "iTunes", "Deezer"
     tries = guesses(title, artist)
     artists = list(dict.fromkeys(a for _, a in tries if a))
     album = _clean(album)
     steps = []
     for t, a in tries:                                   # the song itself
-        steps += [(f"{a + ' - ' if a else ''}{t}" + ("" if a else " (title only)"), MB, mb(musicbrainz), (t, a)),
+        steps += [(f"{a + ' - ' if a else ''}{t}" + ("" if a else " (title only)"), MB, musicbrainz, (t, a)),
                   ("", IT, itunes, (t, a)), ("", DZ, deezer_song, (t, a))]
     for a in artists if album else []:                   # its album
-        steps += [(f"the album {a} - {album}", MB, mb(musicbrainz_album), (album, a)),
+        steps += [(f"the album {a} - {album}", MB, musicbrainz_album, (album, a)),
                   ("", IT, itunes_album, (album, a)), ("", DZ, deezer_album, (album, a))]
     for t, a in tries:                                   # another cover by the same artist
         if a:
-            steps.append((f"any cover by {a}", MB, mb(musicbrainz), (t, a, None, True)))
+            steps.append((f"any cover by {a}", MB, musicbrainz, (t, a, None, True)))
     for a in artists:                                    # a photo of the artist
         steps.append((f"a photo of {a}", DZ, deezer_artist, (a,)))
     for what, name, fn, args in steps:
