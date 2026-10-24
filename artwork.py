@@ -489,11 +489,23 @@ def _size(data: bytes) -> tuple[int, int]:
 
 
 def _layouts():
-    """For each picture: (size, how big the sharp cover is in it, brightness
-    of the blurred fill behind it, brightness of the cover)."""
+    """For each picture: (size, the height the sharp picture gets in it,
+    brightness of the blurred fill behind it, brightness of the picture)."""
     return {"BANNER": (BANNER, BANNER[1], 0.55, 1.0),
             "BACKGROUND": (BACKGROUND, 360, 0.35, 0.8),
-            "JACKET": (JACKET, JACKET[0], 1.0, 1.0)}
+            "JACKET": (JACKET, JACKET[1], 1.0, 1.0)}
+
+
+def _plan(iw: int, ih: int, w: int, h: int, side: int) -> tuple[bool, tuple[int, int, int, int]]:
+    """Whether the picture fills the frame by itself (it's about the frame's
+    shape already, e.g. a wide picture for the banner, so little is cut
+    off), and else where the whole picture goes, centered, with nothing
+    cropped (no cutting through text on a cover): (x, y, width, height)."""
+    if 0.8 <= (iw / ih) / (w / h) <= 1.25:
+        return True, (0, 0, w, h)
+    k = min(side / ih, w / iw)
+    pw, ph = max(1, round(iw * k)), max(1, round(ih * k))
+    return False, ((w - pw) // 2, (h - ph) // 2, pw, ph)
 
 
 def _draw_qt(data: bytes, out: dict[str, Path]) -> bool:
@@ -507,20 +519,23 @@ def _draw_qt(data: bytes, out: dict[str, Path]) -> bool:
         canvas = QImage(w, h, QImage.Format_RGB32)
         p = QPainter(canvas)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
-        # behind: the cover filling the frame, blurred (shrunk, then grown back) and dimmed
+        # the picture filling the frame (cropped to its middle)
         big = img.scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
         big = big.copy((big.width() - w) // 2, (big.height() - h) // 2, w, h)
-        blur = big.scaled(max(1, w // 24), max(1, h // 24), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-        p.drawImage(QRect(0, 0, w, h), blur if side < max(w, h) else big)
-        if fill < 1:
-            p.fillRect(0, 0, w, h, QColor(0, 0, 0, round(255 * (1 - fill))))
-        if side < max(w, h):
-            # in front: the whole cover, sharp
-            x = (w - side) // 2 if tag != "BANNER" else 0
-            p.drawImage(QRect(x, (h - side) // 2, side, side),
-                        img.scaled(side, side, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation))
+        whole, (x, y, pw, ph) = _plan(img.width(), img.height(), w, h, side)
+        if whole:
+            p.drawImage(QRect(0, 0, w, h), big)
             if front < 1:
-                p.fillRect(x, (h - side) // 2, side, side, QColor(0, 0, 0, round(255 * (1 - front))))
+                p.fillRect(0, 0, w, h, QColor(0, 0, 0, round(255 * (1 - front))))
+        else:
+            # behind: that, blurred (shrunk, then grown back) and dimmed; in front: the whole picture, centered
+            blur = big.scaled(max(1, w // 24), max(1, h // 24), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            p.drawImage(QRect(0, 0, w, h), blur)
+            if fill < 1:
+                p.fillRect(0, 0, w, h, QColor(0, 0, 0, round(255 * (1 - fill))))
+            p.drawImage(QRect(x, y, pw, ph), img.scaled(pw, ph, Qt.IgnoreAspectRatio, Qt.SmoothTransformation))
+            if front < 1:
+                p.fillRect(x, y, pw, ph, QColor(0, 0, 0, round(255 * (1 - front))))
         p.end()
         canvas.save(str(out[tag]), "PNG")
     return True
@@ -532,17 +547,17 @@ def _draw_pil(data: bytes, out: dict[str, Path]) -> bool:
     img = Image.open(io.BytesIO(data)).convert("RGB")
     for tag, ((w, h), side, fill, front) in _layouts().items():
         big = ImageOps.fit(img, (w, h), Image.LANCZOS)
-        if side < max(w, h):
-            canvas = big.resize((max(1, w // 24), max(1, h // 24)), Image.BILINEAR).resize((w, h), Image.BILINEAR)
+        whole, (x, y, pw, ph) = _plan(img.width, img.height, w, h, side)
+        if whole:
+            canvas = ImageEnhance.Brightness(big).enhance(front) if front < 1 else big
         else:
-            canvas = big
-        if fill < 1:
-            canvas = ImageEnhance.Brightness(canvas).enhance(fill)
-        if side < max(w, h):
-            cover = ImageOps.fit(img, (side, side), Image.LANCZOS)
+            canvas = big.resize((max(1, w // 24), max(1, h // 24)), Image.BILINEAR).resize((w, h), Image.BILINEAR)
+            if fill < 1:
+                canvas = ImageEnhance.Brightness(canvas).enhance(fill)
+            pic = img.resize((pw, ph), Image.LANCZOS)
             if front < 1:
-                cover = ImageEnhance.Brightness(cover).enhance(front)
-            canvas.paste(cover, ((w - side) // 2 if tag != "BANNER" else 0, (h - side) // 2))
+                pic = ImageEnhance.Brightness(pic).enhance(front)
+            canvas.paste(pic, (x, y))
         canvas.save(out[tag], "PNG")
     return True
 
@@ -587,14 +602,14 @@ def album_of(src: Path) -> str:
 
 
 def find(src: Path, title: str, artist: str, song: Path | None = None, look_online: bool = False,
-         log=print) -> tuple[bytes | None, dict]:
+         log=print, name: str | None = None) -> tuple[bytes | None, dict]:
     """The picture for a song and where it came from. With the song folder
     given, art already in it is kept: (None, {"from": KEPT})."""
     pic = next_to(src)
     if pic is not None:
         # put there by hand for this song: always used
         return pic.read_bytes(), {"from": "image next to the song", "file": pic.name}
-    if song is not None and all((song / n).is_file() for n in file_names(title).values()):
+    if song is not None and all((song / n).is_file() for n in file_names(name or title).values()):
         # an earlier run's, or hand-made: kept, and nothing fetched again
         return None, {"from": KEPT}
     data = embedded(src)
@@ -609,17 +624,18 @@ def find(src: Path, title: str, artist: str, song: Path | None = None, look_onli
 
 
 def make(src: Path, song: Path, title: str, artist: str, look_online: bool = False,
-         log=print, image: Path | None = None, image_from: str | None = None) -> tuple[dict[str, str], dict]:
+         log=print, image: Path | None = None, image_from: str | None = None,
+         name: str | None = None) -> tuple[dict[str, str], dict]:
     """Find a picture for the song and write its art into the song folder.
     `image` is one already chosen (the app finds it when the song is added).
 
     Returns the .sm tags to fill ({"BANNER": file name, ...}, empty when
     there is none) and a record of where it came from."""
-    names = file_names(title)
+    names = file_names(name or title)          # name: the song's file name (layout.file_name)
     if image is not None:
         data, where = image.read_bytes(), {"from": image_from or "chosen in the app"}
     else:
-        data, where = find(src, title, artist, song, look_online, log)
+        data, where = find(src, title, artist, song, look_online, log, name)
     if where["from"] == KEPT:
         log("  artwork: kept what's in the song folder (delete it to make it again)")
         return names, where

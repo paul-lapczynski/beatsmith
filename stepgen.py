@@ -35,7 +35,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # chartstats.py
-from layout import song_dirs
+from layout import file_name, song_dirs
 import librosa
 import soundfile as sf
 
@@ -2038,6 +2038,10 @@ def write_sm(path: Path, title: str, artist: str, music: str, a: Analysis,
         f"#TITLE:{sm_escape(title)};",
         "#SUBTITLE:;",
         f"#ARTIST:{sm_escape(artist)};",
+        # other scripts in the title or artist: a plain-letters version too, for
+        # themes that sort by it or have no font for them
+        *([f"#TITLETRANSLIT:{sm_escape(file_name(title))};"] if not title.isascii() else []),
+        *([f"#ARTISTTRANSLIT:{sm_escape(file_name(artist))};"] if not artist.isascii() else []),
         f"#CREDIT:stepgen {PROFILE_NAME};",
         f"#BANNER:{sm_escape((art or {}).get('BANNER', ''))};",
         f"#BACKGROUND:{sm_escape((art or {}).get('BACKGROUND', ''))};",
@@ -2577,13 +2581,14 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
              art: bool = True, art_online: bool = False, art_image: Path | None = None,
              art_from: str | None = None) -> Path:
     title = title or src.stem
+    name = file_name(title, artist)    # plain ASCII for the folder and files; the .sm keeps `title`
     # the StepMania song folder holds only the chart and the song; stats,
     # settings, stems and the rest sit one level up (layout.py)
-    folder, song = song_dirs(out_dir, title)
+    folder, song = song_dirs(out_dir, name)
     song.mkdir(parents=True, exist_ok=True)
     # the chart is timed against the exact file StepMania will play
     keep_format = keep_format and not shorten        # a shortened song is a new file
-    music = src.name if keep_format else f"{title}.ogg"
+    music = src.name if keep_format and src.name.isascii() else f"{name}{src.suffix if keep_format else '.ogg'}"
     if keep_format:
         if src.resolve() != (song / music).resolve():
             shutil.copy2(src, song / music)
@@ -2742,8 +2747,8 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
             beat_only.append((spec, plain, meter_for(plain, a, spec)))
 
     charts.sort(key=lambda c: SM_DIFFICULTIES.index(c[0].name))
-    sm = song / f"{title}.sm"
-    for old in (folder / f"{title}.sm", folder / music):
+    sm = song / f"{name}.sm"
+    for old in (folder / f"{name}.sm", folder / music):
         # the same song made before the layout change: its copies move into the song folder
         if old.is_file() and old.resolve() != src.resolve() and (
                 old.suffix != ".sm" or "#CREDIT:stepgen" in old.read_text(encoding="utf-8", errors="replace")[:4000]):
@@ -2755,37 +2760,37 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
         import artwork
         try:
             pics, art_rec = artwork.make(src, song, title, artist, art_online,
-                                         image=art_image, image_from=art_from)
+                                         image=art_image, image_from=art_from, name=name)
         except Exception as e:                   # never worth losing the chart over
             print(f"  artwork: skipped ({e})")
     write_sm(sm, title, artist, music, a, charts, pics)
     # kept in a subfolder so StepMania doesn't list it as a second song
-    compare = folder / COMPARE_DIR / f"{title}.sm"
+    compare = folder / COMPARE_DIR / f"{name}.sm"
     if beat_only:
         compare.parent.mkdir(exist_ok=True)
-        write_sm(compare, title, artist, f"../{title}/{music}", a, beat_only)
+        write_sm(compare, title, artist, f"../{name}/{music}", a, beat_only)
     elif compare.is_file():
         compare.unlink()
     if no_ai:
         # temporary: the whole song again without AI assist, as its own song
         # so both can be played and compared in StepMania
         t0 = f"{title} (no AI)"
-        _, song0 = song_dirs(out_dir, t0)
+        _, song0 = song_dirs(out_dir, file_name(t0, artist))
         song0.mkdir(parents=True, exist_ok=True)
         if not (song0 / music).is_file() or (song0 / music).stat().st_size != (song / music).stat().st_size:
             shutil.copy2(song / music, song0 / music)
         for f in pics.values():
             shutil.copy2(song / f, song0 / f)
         no_ai.sort(key=lambda c: SM_DIFFICULTIES.index(c[0].name))
-        write_sm(song0 / f"{t0}.sm", t0, artist, music, a, no_ai, pics)
+        write_sm(song0 / f"{file_name(t0, artist)}.sm", t0, artist, music, a, no_ai, pics)
         print("  without AI: " + ", ".join(f"{sp.name} meter {m}  {len(n)} notes" for sp, n, m in no_ai))
-        print(f"  -> {song0 / f'{t0}.sm'}")
+        print(f"  -> {song0 / f'{file_name(t0, artist)}.sm'}")
     if clicks:
-        write_clicks(folder / f"{title}.clicks.wav", song / music, charts)
-    write_stats(folder / f"{title}.stats.md", sm, a, repeats, seed, sections, follows, ais, made_with)
+        write_clicks(folder / f"{name}.clicks.wav", song / music, charts)
+    write_stats(folder / f"{name}.stats.md", sm, a, repeats, seed, sections, follows, ais, made_with)
     # how this chart was made, so llm_review.py can suggest an exact re-run
     ai_info = {"ai_assist": ais, "ai_model": ai_assist.MODEL.stem} if ais else {}
-    (folder / f"{title}.stepgen.json").write_text(json.dumps({
+    (folder / f"{name}.stepgen.json").write_text(json.dumps({
         "source": str(src.resolve()), "title": title, "artist": artist, "out": str(out_dir.resolve()),
         "profile": PROFILE_NAME, "seed": seed, "bpm": bpm, "set": RUN_SETS, "easy": RUN_EASY,
         "keep_format": keep_format, "stems": stems, "follow": follow or {}, "backoff": backoff,

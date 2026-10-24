@@ -50,7 +50,7 @@ from PySide6.QtWidgets import (
 HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 sys.path.insert(0, str(HERE))
 import stepgen  # noqa: E402
-from layout import find_sm, outer_of, side, song_dirs  # noqa: E402
+from layout import file_name, find_sm, outer_of, side, song_dirs  # noqa: E402
 import artwork  # noqa: E402
 
 APP_NAME = "stepgen"
@@ -213,18 +213,18 @@ class ArtFinder(QObject):
         threading.Thread(target=self._run, daemon=True).start()
 
     def find(self, job: Job, song: Path | None, online: bool, image: Path | None = None):
-        self.todo.put((job, job.path, job.title, job.artist, song, online, image))
+        self.todo.put((job, job.path, job.title, job.artist, song, online, image, out_title(job)))
 
     def _run(self):
         n = 0
         while True:
-            job, src, title, artist, song, online, image = self.todo.get()
+            job, src, title, artist, song, online, image, name = self.todo.get()
             lines = []
             try:
                 if image is not None:
                     data, where = image.read_bytes(), {"from": "picked by hand", "file": image.name}
                 else:
-                    data, where = artwork.find(src, title, artist, song, online, lines.append)
+                    data, where = artwork.find(src, title, artist, song, online, lines.append, name)
                 pic = None
                 if data is not None:
                     n += 1
@@ -1692,7 +1692,7 @@ class Window(QMainWindow):
             self.statusBar().showMessage(f"Finished: {done} done, {failed} failed. Charts are in {self.out}")
 
     def _launch(self, job: Job, title: str):
-        args = [str(job.path), "--out", str(self.out), "--title", title] + self.args_for(job.settings)
+        args = [str(job.path), "--out", str(self.out), "--title", show_title(job)] + self.args_for(job.settings)
         if job.artist:
             args += ["--artist", job.artist]
         if job.bpm > 0:
@@ -1811,13 +1811,19 @@ def old_groove(d: dict) -> int:
 SHORTEN = [("Full song", 0), ("Try to shorten to about 1:30", 90), ("Try to shorten to about 2:00", 120)]
 
 
-def out_title(job) -> str:
-    """The folder and chart name a song is made under: a shortened one is a
-    separate song, '<title> (short)'."""
-    title = safe_name(job.title)
+def show_title(job) -> str:
+    """The title StepMania shows: a shortened song is a separate one,
+    '<title> (short)'."""
+    title = job.title.strip()
     if job.settings.get("shorten") and not title.endswith(" (short)"):
         title += " (short)"
     return title
+
+
+def out_title(job) -> str:
+    """The folder and chart name a song is made under: its title in plain
+    ASCII (layout.file_name), which StepMania can always load."""
+    return file_name(show_title(job), job.artist)
 
 
 def usable(w) -> bool:

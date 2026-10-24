@@ -27,6 +27,12 @@ song (stats, the settings it was made with, stems, compare charts, the
 editor's backup) sits one level up in `songs/My Song/`. Songs made with older
 versions, with everything in one folder, still open and are tidied up when
 made again. Several files at once: `python3 stepgen.py *.mp3`.
+
+Folder and file names are always plain letters, because StepMania on Windows
+skips a song whose folder or files have Korean, Japanese and other letters in
+their names. A title like `(타샤니) Caution (경고)` by Tashannie is made as
+`Tashannie - Caution/` (Korean on its own is spelled out: `경고` is
+`Gyeonggo`), while the .sm keeps the real title and adds `#TITLETRANSLIT`.
 MP3, OGG, WAV and FLAC load directly; anything else goes through ffmpeg.
 
 | Option | What it does |
