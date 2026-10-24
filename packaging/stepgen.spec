@@ -1,4 +1,5 @@
-# PyInstaller spec for the stepgen app. Built by build.bat; see BUILD.md.
+# PyInstaller spec for the stepgen app. Built by build.bat on Windows and
+# build-mac.sh on macOS; see BUILD.md.
 from PyInstaller.utils.hooks import collect_all
 
 root = SPECPATH + "/.."
@@ -14,6 +15,7 @@ for pkg in ("librosa", "soundfile", "lazy_loader", "audioread", "soxr", "soundde
     hidden += h
 # ffmpeg.exe for .wma/.m4a, if build.bat fetched it
 import os
+import sys
 if os.path.isdir(SPECPATH + "/ffmpeg"):
     datas.append((SPECPATH + "/ffmpeg", "ffmpeg"))
 
@@ -21,6 +23,13 @@ a = Analysis([root + "/stepgen_app.py"], pathex=[root], binaries=binaries, datas
              hiddenimports=hidden, excludes=["tkinter", "matplotlib", "IPython",
                       "torch", "torchaudio", "demucs"])   # vocal separation is a separate download
 pyz = PYZ(a.pure)
+mac = sys.platform == "darwin"
+icon = SPECPATH + ("/stepgen.icns" if mac else "/stepgen.ico")
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="stepgen", console=False,
-          icon=SPECPATH + "/stepgen.ico" if os.path.isfile(SPECPATH + "/stepgen.ico") else None)
+          icon=icon if os.path.isfile(icon) else None)
 coll = COLLECT(exe, a.binaries, a.datas, name="stepgen")
+if mac:
+    app = BUNDLE(coll, name="stepgen.app", icon=icon, bundle_identifier="io.github.paul-lapczynski.beatsmith",
+                 version=os.environ.get("STEPGEN_VERSION", "0.0.1"),
+                 info_plist={"CFBundleDisplayName": "stepgen", "NSHighResolutionCapable": True,
+                             "LSMinimumSystemVersion": "12.0"})
