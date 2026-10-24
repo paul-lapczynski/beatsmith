@@ -182,35 +182,38 @@ def _sub(song, notes) -> str:
 
 
 def sets_to_draw():
-    """(file name, heading, [(column title, Config)]) for every picture."""
+    """(file name, heading, [(column title, Config)], difficulty) for every
+    picture. The sliders are shown on Medium: on Hard the difficulty target
+    takes back much of what they change, so their effect is harder to see."""
     C = harness.Config
     hard = dict(profile="konami", seed=1)
     out = []
     for s, (label, lo, hi) in FEEL_LABELS.items():
         out.append((f"feel-{s}", f"{label}: 25% / 50% / 75%",
-                    [(f"{label} {v}%", C(**hard, feel=((s, v),))) for v in (25, 50, 75)]))
+                    [(f"{label} {v}%", C(**hard, feel=((s, v),))) for v in (25, 50, 75)], "Medium"))
     out.append(("groove", "Groove: off / 25% / 50% / 75%",
-                [(f"Groove {'off' if v == 0 else f'{v}%'}", C(**hard, groove=v)) for v in (0, 25, 50, 75)]))
+                [(f"Groove {'off' if v == 0 else f'{v}%'}", C(**hard, groove=v)) for v in (0, 25, 50, 75)], "Medium"))
     out.append(("difficulty", "Hard aimed at 3 / 5 / 7 / 9",
                 [(f"Difficulty {m}", C(**hard, targets=(("Easy", 3.0), ("Medium", 6.0), ("Hard", float(m)))))
-                 for m in (3, 5, 7, 9)]))
+                 for m in (3, 5, 7, 9)], "Hard"))
     out.append(("follow", "Arrows follow: the beat / 50% / the tune",
-                [(f"Follow {v}%", C(**hard, follow=v)) for v in (0, 50, 100)]))
+                [(f"Follow {v}%", C(**hard, follow=v)) for v in (0, 50, 100)], "Medium"))
     out.append(("ai", "Steps placed by: rules / 50% / AI model",
-                [(f"AI assist {v}%", C(**hard, ai=v)) for v in (0, 50, 100)]))
-    out.append(("targets-off", "No target: the profile's own Hard at Speed 25 / 50 / 75%",
-                [(f"Speed {v}%, no target", C(**hard, targets=None, feel=(("speed", v),))) for v in (25, 50, 75)]))
+                [(f"AI assist {v}%", C(**hard, ai=v)) for v in (0, 50, 100)], "Medium"))
+    out.append(("targets-off", "No target: the profile's own Medium at Speed 25 / 50 / 75%",
+                [(f"Speed {v}%, no target", C(**hard, targets=None, feel=(("speed", v),))) for v in (25, 50, 75)],
+                "Medium"))
     return out
 
 
-def all_images(song_path: Path, song_name: str, diff: str = "Hard"):
+def all_images(song_path: Path, song_name: str):
     IMG.mkdir(parents=True, exist_ok=True)
     song = harness.load_song(song_path, song_name.replace(" ", "_").lower())
     bar0 = bars_to_show(song)
     (IMG / "legend.svg").write_text(legend(), encoding="utf-8")
     to_png(IMG / "legend.svg")
     made = {}
-    for fname, heading, cols in sets_to_draw():
+    for fname, heading, cols, diff in sets_to_draw():
         panels = []
         for title, cfg in cols:
             ch = [c for c in harness.make_charts(song, cfg) if c.diff == diff][0]

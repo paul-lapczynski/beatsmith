@@ -6,7 +6,7 @@ Try them live: **[preview.html](preview.html)** has a slider per control, the 4 
 
 ![Note colours](img/legend.svg)
 
-The pictures are the Hard chart of *Stepgen Demo* (examples/Stepgen Demo, a track synthesized for these docs) with the konami profile, seed 1 and the app's default difficulty targets (Easy 3, Medium 6, Hard 8), with everything else at its default. Each column's header gives the whole chart's rating, step count, jumps and freezes.
+The pictures are the Medium chart of *Stepgen Demo* (examples/Stepgen Demo, a track synthesized for these docs; the difficulty picture uses Hard) with the konami profile, seed 1 and the app's default difficulty targets (Easy 3, Medium 6, Hard 8), with everything else at its default. Each column's header gives the whole chart's rating, step count, jumps and freezes.
 
 ## At a glance
 
