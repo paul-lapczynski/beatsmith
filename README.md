@@ -189,8 +189,8 @@ the one before can't get there:
 2. **16th streams**, within the 16th allowance Speed sets.
 3. **Speed**: 8th-note runs, then quarter-beat bursts.
 4. **Breathing room** eased to half.
-5. For 9s and 10s only: **longer 16th streams and more 8ths**, past
-   Speed's allowance. 16ths still stop at the share Konami's own 9s and 10s
+5. For 9s and 10s only: **longer 16th streams, more 8ths and less rest**
+   (shorter recovery, pauses further apart), past Speed's allowance. 16ths still stop at the share Konami's own 9s and 10s
    have (16% of steps at 9, 20% at 10).
 
 With a target, off-beat 8ths are kept to a share Speed sets (15% of steps
@@ -209,7 +209,9 @@ official Konami pad charts from the PS2 and arcade mixes. It reads steps/sec
 over the song and in its busiest bars, jumps, off-beat and quarter-beat
 steps, the longest 8th-note run and holds. It lands within one of Konami's
 number 70% of the time; Konami's Sandstorm charts (4/6/8) rate 3.0/5.4/7.3.
-It runs a little low on 9-10 charts. The meter written to the .sm is always
+The fit itself squeezes the top (Konami's own 9s came out 8.4, their 10s
+9.4), so past 8 it's stretched back until their 9s rate 9 and their 10s
+rate 10. The meter written to the .sm is always
 this rating, so it tells you whether a change made the chart harder.
 
 ## Easy-mode sliders
