@@ -38,7 +38,8 @@ NEXT_TO_SONG = ("cover", "folder", "front", "album", "albumart")
 IMAGE_EXT = (".jpg", ".jpeg", ".png")
 MIN_SIZE = 200          # smaller than this looks like mush on a 640x480 background
 
-USER_AGENT = "BeatSmith/0.0.1 ( https://github.com/paul-lapczynski/beatsmith )"   # MusicBrainz asks for one
+# MusicBrainz requires one naming the application, its version and a contact
+USER_AGENT = "BeatSmith/0.0.1 ( https://github.com/paul-lapczynski/beatsmith )"
 MUSICBRAINZ = "https://musicbrainz.org/ws/2/recording/"
 COVER_ART_ARCHIVE = "https://coverartarchive.org"
 ITUNES = "https://itunes.apple.com/search"
@@ -117,24 +118,52 @@ def _same(a: str, b: str) -> bool:
 
 
 _MB_LAST = Path(__import__("tempfile").gettempdir()) / "beatsmith-musicbrainz-last"
+MB_GAP = 1.1         # seconds between MusicBrainz calls: their rule is at most one a second
 
 
 def _musicbrainz_turn():
-    """MusicBrainz allows about one request a second from a computer, and
-    several songs can be looking at once (the app and each chart being
-    made): they share a time stamp file to take turns."""
-    for _ in range(50):
+    """MusicBrainz allows at most one call a second from an application,
+    retries included, and several songs can be looking at once (the app and
+    each chart being made). They take turns under a lock file, and a time
+    stamp file says when the last call went out."""
+    import os
+    lock = _MB_LAST.with_name(_MB_LAST.name + ".lock")
+    start = time.time()
+    while True:
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except FileExistsError:
+            try:
+                if time.time() - lock.stat().st_mtime > 30:     # left behind by a crash
+                    lock.unlink()
+            except OSError:
+                pass
+        except OSError:
+            fd = None                      # no temp folder to share: this process alone keeps the gap
+            break
+        if time.time() - start > 120:
+            fd = None
+            break
+        time.sleep(0.1)
+    try:
         try:
             gap = time.time() - _MB_LAST.stat().st_mtime
         except OSError:
-            gap = 99.0
-        if gap >= 1.2:
-            break
-        time.sleep(1.2 - gap + 0.05)
-    try:
-        _MB_LAST.touch()
-    except OSError:
-        pass
+            gap = MB_GAP
+        if gap < MB_GAP:
+            time.sleep(MB_GAP - gap)
+        try:
+            _MB_LAST.touch()
+        except OSError:
+            pass
+    finally:
+        if fd is not None:
+            os.close(fd)
+            try:
+                lock.unlink()
+            except OSError:
+                pass
 
 
 def _get(url: str, log, accept: str = "application/json") -> bytes | None:
