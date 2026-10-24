@@ -5,8 +5,9 @@ root = SPECPATH + "/.."
 datas = [(root + "/patterns.toml", "."), (root + "/profiles", "profiles"),
          (root + "/README.md", "."), (SPECPATH + "/stepgen.png", "."),
          (root + "/stems.py", "."), (root + "/lyrics.py", ".")]      # run by the optional add-ons' own Python
-binaries, hidden = [], ["stepgen", "chartstats", "llm_review", "chart_editor", "groove", "layout", "shorten", "verses", "addons", "stems", "mutagen", "sounddevice"]
-for pkg in ("librosa", "soundfile", "lazy_loader", "audioread", "soxr", "sounddevice", "_sounddevice_data"):
+datas += [(root + "/models", "models")]                          # AI assist model
+binaries, hidden = [], ["stepgen", "chartstats", "llm_review", "chart_editor", "groove", "layout", "shorten", "verses", "addons", "ai_assist", "stems", "mutagen", "sounddevice"]
+for pkg in ("librosa", "soundfile", "lazy_loader", "audioread", "soxr", "sounddevice", "_sounddevice_data", "onnxruntime"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b
