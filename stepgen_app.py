@@ -40,10 +40,10 @@ if len(sys.argv) > 1 and sys.argv[1] in ("--install-stems", "--install-addon"):
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QSettings, QStandardPaths, Qt, QUrl, Signal
 from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog,
-    QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QSlider,
-    QSpinBox,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
+    QDoubleSpinBox, QFileDialog, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView,
+    QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QProgressDialog,
+    QPushButton, QRadioButton, QScrollArea, QSlider, QSpinBox,
     QSplitter, QTabWidget, QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget,
 )
 
@@ -52,6 +52,7 @@ sys.path.insert(0, str(HERE))
 import stepgen  # noqa: E402
 from layout import file_name, find_sm, outer_of, side, song_dirs  # noqa: E402
 import artwork  # noqa: E402
+import export  # noqa: E402
 
 APP_NAME = "stepgen"
 AUDIO_EXT = {".mp3", ".ogg", ".wav", ".flac", ".m4a", ".aac", ".wma", ".opus"}
@@ -284,6 +285,7 @@ class Window(QMainWindow):
     def _menus(self):
         m = self.menuBar().addMenu("&File")
         for text, fn in (("Add songs…", self.add_files), ("Add folder…", self.add_folder),
+                         ("Export songs…", self.export_songs),
                          ("Save settings as profile…", self.save_profile)):
             a = QAction(text, self)
             a.triggered.connect(fn)
@@ -313,6 +315,11 @@ class Window(QMainWindow):
                                   "open them in the editor or regenerate them.")
         self.show_made.toggled.connect(self.refresh_made)
         bar.addWidget(self.show_made)
+        b = QPushButton("Export…")
+        b.setToolTip("Copy made songs into StepMania's Songs folder (or a zip): just the chart, "
+                     "the song and its pictures.")
+        b.clicked.connect(self.export_songs)
+        bar.addWidget(b)
         v.addLayout(bar)
 
         self.table = QTableWidget(0, 7)
@@ -1001,6 +1008,13 @@ class Window(QMainWindow):
         if d:
             self.out_edit.setText(d)
             self.refresh_made()
+
+    def export_songs(self):
+        text = self.out_edit.text().strip()
+        if not text or not Path(text).is_dir():
+            QMessageBox.information(self, "stepgen", "Pick the output folder your songs were made in first.")
+            return
+        ExportDialog(Path(text), self.settings, self).exec()
 
     # --------------------------------------------------- per-song settings
     def capture(self) -> dict:
@@ -1846,6 +1860,162 @@ def old_groove(d: dict) -> int:
     if "groove" in d:
         return int(d["groove"])
     return max(0, 2 * (int(d.get("sliders", {}).get("groove", 50)) - 50))
+
+
+class ExportDialog(QDialog):
+    """Pick made songs and copy them into StepMania's Songs/<group> folder,
+    or into a zip: just the chart, the song and its pictures (export.py)."""
+
+    def __init__(self, folder: Path, settings: QSettings, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Export songs")
+        self.resize(760, 560)
+        self.settings = settings
+        self.songs = export.made_songs(folder)
+        v = QVBoxLayout(self)
+        v.addWidget(QLabel(f"Songs made in {folder}:"))
+
+        self.all = QCheckBox("All")
+        self.all.setTristate(True)
+        self.all.clicked.connect(self._all_clicked)
+        v.addWidget(self.all)
+        self.table = QTableWidget(len(self.songs), 5)
+        self.table.setHorizontalHeaderLabels(["Title", "Artist", "Meters E/M/H", "Made in", "Exported as"])
+        hh = self.table.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        for c in (1, 2, 3, 4):
+            hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        for r, (song, name) in enumerate(zip(self.songs, export.names(self.songs))):
+            meters = read_meters(song.sm)
+            it = QTableWidgetItem(song.title)
+            it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
+            it.setCheckState(Qt.Unchecked)
+            it.setToolTip(str(song.sm.parent))
+            self.table.setItem(r, 0, it)
+            self.table.setItem(r, 1, QTableWidgetItem(song.artist))
+            self.table.setItem(r, 2, QTableWidgetItem(" / ".join(meters.get(d, "-") for d in DIFFS)))
+            # the song's folder in the output folder, to tell apart songs made twice
+            self.table.setItem(r, 3, QTableWidgetItem(outer_of(song.sm).name))
+            self.table.setItem(r, 4, QTableWidgetItem(name))
+        self.table.itemChanged.connect(self._sync_all)
+        # a click anywhere else on the row ticks it too
+        self.table.cellClicked.connect(lambda r, c: c and self._toggle(r))
+        v.addWidget(self.table, 1)
+        if not self.songs:
+            v.addWidget(QLabel("No songs made there yet."))
+
+        box = QGroupBox("Where to")
+        g = QGridLayout(box)
+        self.to_folder = QRadioButton("Copy into a folder")
+        self.to_folder.setToolTip("Each song gets its own folder in here: pick a group folder in "
+                                  "StepMania's Songs folder, e.g. Songs\\AATesting.")
+        self.to_zip = QRadioButton("Save as a zip")
+        self.to_zip.setToolTip("One zip with a folder per song inside: unzip it into a group "
+                               "folder in StepMania's Songs folder.")
+        self.dest = QLineEdit(settings.value("export_dir", ""))
+        self.dest.setPlaceholderText("e.g. C:\\Games\\StepMania 5\\Songs\\AATesting")
+        browse = QPushButton("Browse…")
+        browse.clicked.connect(self._browse)
+        g.addWidget(self.to_folder, 0, 0)
+        g.addWidget(self.dest, 0, 1)
+        g.addWidget(browse, 0, 2)
+        g.addWidget(self.to_zip, 1, 0)
+        g.addWidget(QLabel("You pick where the zip goes when you press Export."), 1, 1, 1, 2)
+        (self.to_zip if settings.value("export_zip", "false") == "true" else self.to_folder).setChecked(True)
+        v.addWidget(box)
+
+        bb = QDialogButtonBox()
+        self.go = bb.addButton("Export", QDialogButtonBox.AcceptRole)
+        bb.addButton(QDialogButtonBox.Close)
+        bb.accepted.connect(self.run)
+        bb.rejected.connect(self.reject)
+        v.addWidget(bb)
+        self._sync_all()
+
+    def _toggle(self, r: int):
+        it = self.table.item(r, 0)
+        it.setCheckState(Qt.Unchecked if it.checkState() == Qt.Checked else Qt.Checked)
+
+    def _all_clicked(self):
+        # clicking a partly ticked box ticks everything rather than cycling
+        on = self.all.checkState() != Qt.Unchecked
+        self.table.blockSignals(True)
+        for r in range(self.table.rowCount()):
+            self.table.item(r, 0).setCheckState(Qt.Checked if on else Qt.Unchecked)
+        self.table.blockSignals(False)
+        self._sync_all()
+
+    def chosen(self) -> list:
+        return [s for r, s in enumerate(self.songs) if self.table.item(r, 0).checkState() == Qt.Checked]
+
+    def _sync_all(self, *_):
+        n = len(self.chosen())
+        self.all.setCheckState(Qt.Unchecked if n == 0 else Qt.Checked if n == len(self.songs)
+                               else Qt.PartiallyChecked)
+        self.go.setEnabled(n > 0)
+        self.go.setText(f"Export {n} song{'s' * (n != 1)}" if n else "Export")
+
+    def _browse(self):
+        d = QFileDialog.getExistingDirectory(self, "Export into", self.dest.text())
+        if d:
+            self.dest.setText(d)
+            self.to_folder.setChecked(True)
+
+    def run(self):
+        songs = self.chosen()
+        if self.to_zip.isChecked():
+            last = self.settings.value("export_zip_path", "") or str(Path.home() / "stepgen songs.zip")
+            f, _ = QFileDialog.getSaveFileName(self, "Save zip", last, "Zip files (*.zip)")
+            if not f:
+                return
+            dest = Path(f) if f.lower().endswith(".zip") else Path(f + ".zip")
+            self.settings.setValue("export_zip_path", str(dest))
+        else:
+            text = self.dest.text().strip()
+            if not text:
+                QMessageBox.warning(self, "Export songs", "Pick the folder to copy the songs into.")
+                return
+            dest = Path(text)
+            self.settings.setValue("export_dir", text)
+        self.settings.setValue("export_zip", "true" if self.to_zip.isChecked() else "false")
+
+        prog = QProgressDialog("Exporting…", "Stop", 0, len(songs), self)
+        prog.setWindowModality(Qt.WindowModal)
+        prog.setMinimumDuration(300)
+
+        def step(i, n):
+            prog.setValue(i)
+            prog.setLabelText(f"Exporting {songs[i].title}…")
+            QApplication.processEvents()
+            return not prog.wasCanceled()
+
+        notes = []
+        try:
+            done = export.export(songs, dest, notes.append, step)
+        except OSError as e:
+            prog.close()
+            QMessageBox.warning(self, "Export songs", f"The export stopped: {e}")
+            return
+        prog.setValue(len(songs))
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Export songs")
+        msg.setIcon(QMessageBox.Warning if notes else QMessageBox.Information)
+        msg.setText(f"Exported {len(done)} song{'s' * (len(done) != 1)} to {dest}.")
+        if notes:
+            msg.setInformativeText(f"{len(notes)} note{'s' * (len(notes) != 1)}: see Show Details.")
+            msg.setDetailedText("\n".join(notes))
+        show = msg.addButton("Open folder", QMessageBox.AcceptRole)
+        msg.addButton(QMessageBox.Close)
+        msg.exec()
+        if msg.clickedButton() is show:
+            if sys.platform == "win32" and dest.suffix.lower() == ".zip":
+                QProcess.startDetached("explorer", [f"/select,{dest}"])
+            else:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(dest if dest.suffix.lower() != ".zip"
+                                                                 else dest.parent)))
 
 
 SHORTEN = [("Full song", 0), ("Try to shorten to about 1:30", 90), ("Try to shorten to about 2:00", 120)]
