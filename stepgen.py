@@ -1910,6 +1910,12 @@ def chart_features(notes: list[Note], spb: float) -> dict[str, float] | None:
             "holds": sum(len(nt.panels) for nt in notes if nt.hold_rows) / span}
 
 
+# the fit above squeezes the top: Konami's own 8s rate 8.0 on it (median),
+# but their 9s only 8.4 and their 10s 9.4. Past 8 it's stretched back so a
+# chart like their 9s rates 9 (and like their 10s, 10)
+METER_TOP = ((8.0, 8.0), (8.42, 9.0), (9.42, 10.0))
+
+
 def estimate_meter(notes: list[Note], spb: float) -> float:
     """The difficulty Konami would likely give this chart, as a decimal."""
     f = chart_features(notes, spb)
@@ -1917,7 +1923,13 @@ def estimate_meter(notes: list[Note], spb: float) -> float:
         return 1.0
     x = np.array([f[k] for k in METER_FEATURES], float)
     v = np.concatenate([[1.0], x, np.sqrt(np.abs(x))])
-    return float(max(1.0, v @ np.array(METER_WEIGHTS)))
+    raw = float(max(1.0, v @ np.array(METER_WEIGHTS)))
+    (r0, _), *_, (r1, m1) = METER_TOP
+    if raw <= r0:
+        return raw
+    if raw >= r1:
+        return m1 + raw - r1
+    return float(np.interp(raw, *zip(*METER_TOP)))
 
 
 def meter_for(notes: list[Note], a: Analysis, spec: DiffSpec) -> int:
@@ -1977,6 +1989,9 @@ def with_intensity(spec: DiffSpec, k: float, nps_8ths: float | None = None) -> D
         x = k - KONAMI_K
         d.sixteenths = max(spec.sixteenths, 1.0) * min(1 + x, PAST_KONAMI_16THS)
         d.max_run16 = spec.max_run16 + int(round(6 * x))
+        # and less rest: shorter recovery after runs, pauses further apart
+        d.recovery = spec.recovery * max(0.0, 1 - 0.5 * x)
+        d.run_breaks = spec.run_breaks * max(0.0, 1 - 0.4 * x)
     return d
 
 
