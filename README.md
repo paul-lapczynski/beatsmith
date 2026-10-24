@@ -404,6 +404,15 @@ before it's fetched:
 | Song search by title and artist | https://musicbrainz.org (MusicBrainz) |
 | The cover for what it finds | https://coverartarchive.org (Cover Art Archive; the files come from archive.org) |
 | When MusicBrainz has none | https://itunes.apple.com (iTunes Search API; the pictures come from Apple's mzstatic.com) |
+| Then, and for a photo of the artist | https://api.deezer.com (Deezer API; the pictures come from dzcdn.net) |
+
+It tries the song's own cover first, then its album's (from the album tag),
+then another cover by the same artist, and last a photo of the artist.
+Without an artist tag it guesses one from the name ("Artist - Title",
+"ARTIST-TITLE") and also tries what's in brackets as the title. It looks
+in the US, Korean and Japanese iTunes stores and accepts a title listed in
+another language when the English one is in brackets ("경고 (Caution)").
+The Details tab says what it matched and flags a loose match to check.
 
 In the app the artwork is found as soon as a song is added, and the
 **Details** tab (beside Chart stats and Log) shows the jacket, banner and

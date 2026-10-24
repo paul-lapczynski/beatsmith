@@ -799,8 +799,9 @@ class Window(QMainWindow):
                                    "cover it finds. Each address is listed in the song's log.\n\n"
                                    + "\n".join(f"{what}: {where}" for what, where in artwork.ONLINE_SOURCES))
         f.addRow(self.art_online)
-        self.art_sources = QLabel("Searches musicbrainz.org, then itunes.apple.com; covers come from "
-                                  "coverartarchive.org (archive.org) or Apple's mzstatic.com.")
+        self.art_sources = QLabel("Searches musicbrainz.org, itunes.apple.com and api.deezer.com; pictures "
+                                  "come from coverartarchive.org (archive.org), Apple's mzstatic.com or "
+                                  "Deezer's dzcdn.net.")
         self.art_sources.setWordWrap(True)
         self.art_sources.setStyleSheet("color: gray;")
         f.addRow(self.art_sources)

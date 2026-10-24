@@ -6,8 +6,9 @@ Where the picture comes from, in order:
   2. art made on an earlier run, kept as it is (so hand edits survive and
      nothing is fetched twice; delete the files to make them again)
   3. the cover art inside the song file's own tags (MP3, FLAC, Ogg, M4A)
-  4. only when asked (--art-online): looked up online by title and artist,
-     on MusicBrainz with its Cover Art Archive, else the iTunes Search API.
+  4. only when asked (--art-online): looked up online by title and artist:
+     the song's cover, its album's, another by the artist, or a photo of the
+     artist, from MusicBrainz / Cover Art Archive, iTunes and Deezer.
      Each address is printed before it's fetched.
 
 From the one picture it writes <title>-bn.png (418x164 banner),
@@ -41,6 +42,7 @@ USER_AGENT = "BeatSmith/0.0.1 ( https://github.com/paul-lapczynski/beatsmith )" 
 MUSICBRAINZ = "https://musicbrainz.org/ws/2/recording/"
 COVER_ART_ARCHIVE = "https://coverartarchive.org"
 ITUNES = "https://itunes.apple.com/search"
+DEEZER = "https://api.deezer.com/search"
 # for the app's tooltip and the README: every place an online lookup reaches
 ONLINE_SOURCES = [
     ("Song search by title and artist", "https://musicbrainz.org (MusicBrainz)"),
@@ -48,6 +50,8 @@ ONLINE_SOURCES = [
                                          "the files come from archive.org)"),
     ("When MusicBrainz has none", "https://itunes.apple.com (iTunes Search API; "
                                   "the pictures come from Apple's mzstatic.com)"),
+    ("Then, and for a photo of the artist when no cover is found", "https://api.deezer.com (Deezer API; "
+                                                                   "the pictures come from dzcdn.net)"),
 ]
 
 
@@ -107,8 +111,9 @@ def _norm(s: str) -> str:
 
 
 def _same(a: str, b: str) -> bool:
-    a, b = _norm(a), _norm(b)
-    return bool(a and b) and (a == b or a.startswith(b) or b.startswith(a))
+    """Names that read the same, counting what's in brackets: "타샤니 (TASHANNIE)"
+    is TASHANNIE."""
+    return _title_is(a, b)
 
 
 def _get(url: str, log, accept: str = "application/json") -> bytes | None:
@@ -156,6 +161,13 @@ def guesses(title: str, artist: str) -> list[tuple[str, str]]:
             elif _same(parts[0], a):
                 out.append((parts[1], a))                              # the artist written in the title too
             break
+    # what's in brackets may be the real title: "TASHANNIE-DONT BOTHER ME (CAUTION)" is
+    # Tashannie's "경고 (Caution)"
+    extra = [x.strip() for x in re.findall(r"[\(\[](.*?)[\)\]]", title) if x.strip()]
+    for x in extra:
+        for _, who in list(out):
+            if who:
+                out.append((x, who))
     if not a:
         out.append((t, ""))
     seen, res = set(), []
@@ -164,7 +176,7 @@ def guesses(title: str, artist: str) -> list[tuple[str, str]]:
         if k[0] and k not in seen:
             seen.add(k)
             res.append(g)
-    return res[:4]
+    return res[:6]
 
 
 def _lucene(s: str) -> str:
@@ -175,20 +187,47 @@ def _exact(a: str, b: str) -> bool:
     return bool(_norm(a)) and _norm(a) == _norm(b)
 
 
-def musicbrainz(title: str, artist: str, log) -> tuple[bytes, str] | None:
+def _forms(title: str) -> set[str]:
+    """A title and the names in its brackets: a song in another language is
+    often listed as "건들지마 (Don't Bother Me)" or "Don't Bother Me (건들지마)"."""
+    out = {_norm(title)} | {_norm(x) for x in re.findall(r"[\(\[](.*?)[\)\]]", title)}
+    return {f for f in out if f}
+
+
+def _title_is(found: str, wanted: str, exact: bool = False) -> bool:
+    for a in _forms(found):
+        for b in _forms(wanted):
+            if a == b or (not exact and (a.startswith(b) or b.startswith(a))):
+                return True
+    return False
+
+
+_searched: dict[str, bytes | None] = {}     # MusicBrainz answers during one online(), asked once
+
+
+def musicbrainz(title: str, artist: str, log, loose: bool = False) -> tuple[bytes, str, str | None] | None:
+    """loose: when no title matches, the artist's best match (a song listed
+    under another language's title, say), flagged to check."""
     q = f"recording:({_lucene(title)})" + (f" AND artist:({_lucene(artist)})" if artist else "")
-    data = _get(f"{MUSICBRAINZ}?{urllib.parse.urlencode({'query': q, 'fmt': 'json', 'limit': 15})}", log)
+    url = f"{MUSICBRAINZ}?{urllib.parse.urlencode({'query': q, 'fmt': 'json', 'limit': 15})}"
+    if url not in _searched:
+        _searched[url] = _get(url, log)
+    data = _searched[url]
     try:
         recs = json.loads(data)["recordings"] if data else []
     except (ValueError, KeyError):
         return None
-    groups, releases = [], []
+    groups, releases, artist_only = [], [], []
     for rec in recs:
         credit = "".join(c.get("name", "") + c.get("joinphrase", "") for c in rec.get("artist-credit", []))
         if artist:
-            ok = rec.get("score", 0) >= 60 and _same(rec.get("title", ""), title) and _same(credit, artist)
+            ok = rec.get("score", 0) >= 60 and _title_is(rec.get("title", ""), title) and _same(credit, artist)
+            if not ok and _title_is(credit, artist, exact=True) and rec.get("releases"):
+                # the artist for sure, but a title that doesn't read the same (another
+                # language, another spelling): kept as a last resort
+                artist_only.append((credit, rec))
         else:                       # the title alone: only an exact, confident match
-            ok = rec.get("score", 0) >= 95 and _exact(rec.get("title", ""), title)
+            ok = rec.get("score", 0) >= 95 and _title_is(rec.get("title", ""), title, exact=True)
         if not ok:
             continue
         for rel in rec.get("releases", []):
@@ -202,6 +241,15 @@ def musicbrainz(title: str, artist: str, log) -> tuple[bytes, str] | None:
             releases.append((rank, rel["id"], what))
         if not artist and (groups or releases):
             break                   # without an artist, only the best match's covers
+    note = None
+    if loose and not groups and not releases and artist_only:
+        credit, rec = artist_only[0]           # MusicBrainz's best guess for the artist
+        note = "a cover by the same artist, not this song's: check it"
+        for rel in rec["releases"]:
+            what = f"{credit} - {rec.get('title', '')}"
+            if rel.get("release-group", {}).get("id"):
+                groups.append(((False, False), rel["release-group"]["id"], what))
+            releases.append(((False, False), rel["id"], what))
     for kind, ids in (("release-group", groups), ("release", releases)):
         seen = []
         for _, i, what in sorted(ids, key=lambda x: x[0]):
@@ -210,44 +258,144 @@ def musicbrainz(title: str, artist: str, log) -> tuple[bytes, str] | None:
         for i, what in seen[:3]:
             img = _get(f"{COVER_ART_ARCHIVE}/{kind}/{i}/front-500", log, accept="image/*")
             if img:
-                return img, what
+                return img, what, note
     return None
 
 
-def itunes(title: str, artist: str, log) -> tuple[bytes, str] | None:
+ITUNES_STORES = ("us", "kr", "jp")     # US first; Korean and Japanese stores list K-pop and J-pop in full
+
+
+def itunes(title: str, artist: str, log) -> tuple[bytes, str, str | None] | None:
     term = f"{artist} {title}".strip()
-    data = _get(f"{ITUNES}?{urllib.parse.urlencode({'term': term, 'entity': 'song', 'limit': 15})}", log)
-    try:
-        results = json.loads(data)["results"] if data else []
-    except (ValueError, KeyError):
-        return None
-    for r in results:
-        url = r.get("artworkUrl100", "")
-        track, by = r.get("trackName", ""), r.get("artistName", "")
-        ok = (_same(track, title) and _same(by, artist)) if artist else _exact(track, title)
-        if url and ok:
-            img = _get(url.replace("100x100bb", "600x600bb"), log, accept="image/*")
-            if img:
-                return img, f"{by} - {track}"
+    for store in ITUNES_STORES:
+        data = _get(f"{ITUNES}?{urllib.parse.urlencode({'term': term, 'entity': 'song', 'limit': 15, 'country': store})}",
+                    log)
+        try:
+            results = json.loads(data)["results"] if data else []
+        except (ValueError, KeyError):
+            continue
+        for r in results:
+            url = r.get("artworkUrl100", "")
+            track, by = r.get("trackName", ""), r.get("artistName", "")
+            ok = (_title_is(track, title) and _same(by, artist)) if artist else _title_is(track, title, exact=True)
+            if url and ok:
+                img = _get(url.replace("100x100bb", "600x600bb"), log, accept="image/*")
+                if img:
+                    return img, f"{by} - {track}", None
     return None
 
 
-def online(title: str, artist: str, log=print) -> tuple[bytes, dict] | None:
-    """Search by title and artist, trying a few readings of the name; the
-    record says which song it matched, to check in the Details tab."""
-    last_mb = 0.0
-    for t, a in guesses(title, artist):
-        log(f"  artwork: searching for {a + ' - ' if a else ''}{t}" + ("" if a else " (title only)"))
-        for name, fn in (("MusicBrainz / Cover Art Archive", musicbrainz), ("iTunes", itunes)):
-            if fn is musicbrainz:   # MusicBrainz allows one request a second
-                time.sleep(max(0.0, 1.1 - (time.monotonic() - last_mb)))
-                last_mb = time.monotonic()
-            found = fn(t, a, log)
-            if found and _size(found[0])[0] >= MIN_SIZE:
-                where = {"from": name, "match": found[1]}
-                if not a:
-                    where["note"] = "matched by title only: check it's the right song"
-                return found[0], where
+def _json(url: str, log, key: str) -> list:
+    data = _get(url, log)
+    try:
+        return json.loads(data).get(key) or [] if data else []
+    except ValueError:
+        return []
+
+
+def deezer_song(title: str, artist: str, log):
+    q = f'artist:"{artist}" track:"{title}"' if artist else title
+    for r in _json(f"{DEEZER}?{urllib.parse.urlencode({'q': q, 'limit': 15})}", log, "data"):
+        track, by, cover = r.get("title", ""), r.get("artist", {}).get("name", ""), r.get("album", {}).get("cover_xl")
+        ok = (_title_is(track, title) and _same(by, artist)) if artist else _title_is(track, title, exact=True)
+        if cover and ok:
+            img = _get(cover, log, accept="image/*")
+            if img:
+                return img, f"{by} - {track}", None
+    return None
+
+
+def musicbrainz_album(album: str, artist: str, log):
+    q = f"releasegroup:({_lucene(album)}) AND artist:({_lucene(artist)})"
+    for rg in _json(f"https://musicbrainz.org/ws/2/release-group/?"
+                    f"{urllib.parse.urlencode({'query': q, 'fmt': 'json', 'limit': 10})}", log, "release-groups"):
+        credit = "".join(c.get("name", "") + c.get("joinphrase", "") for c in rg.get("artist-credit", []))
+        if rg.get("score", 0) >= 60 and _title_is(rg.get("title", ""), album) and _same(credit, artist):
+            img = _get(f"{COVER_ART_ARCHIVE}/release-group/{rg['id']}/front-500", log, accept="image/*")
+            if img:
+                return img, f"{credit} - {rg.get('title', '')} (album)", None
+    return None
+
+
+def itunes_album(album: str, artist: str, log):
+    for store in ITUNES_STORES:
+        query = {"term": f"{artist} {album}", "entity": "album", "limit": 15, "country": store}
+        for r in _json(f"{ITUNES}?{urllib.parse.urlencode(query)}", log, "results"):
+            name, by, url = r.get("collectionName", ""), r.get("artistName", ""), r.get("artworkUrl100", "")
+            if url and _title_is(name, album) and _same(by, artist):
+                img = _get(url.replace("100x100bb", "600x600bb"), log, accept="image/*")
+                if img:
+                    return img, f"{by} - {name} (album)", None
+    return None
+
+
+def deezer_album(album: str, artist: str, log):
+    q = 'artist:"%s" album:"%s"' % (artist, album)
+    for r in _json(f"{DEEZER}/album?{urllib.parse.urlencode({'q': q, 'limit': 15})}", log, "data"):
+        name, by, cover = r.get("title", ""), r.get("artist", {}).get("name", ""), r.get("cover_xl")
+        if cover and _title_is(name, album) and _same(by, artist):
+            img = _get(cover, log, accept="image/*")
+            if img:
+                return img, f"{by} - {name} (album)", None
+    return None
+
+
+def deezer_artist(artist: str, log):
+    for r in _json(f"{DEEZER}/artist?{urllib.parse.urlencode({'q': artist, 'limit': 10})}", log, "data"):
+        pic = r.get("picture_xl") or ""
+        # an artist without a photo gets Deezer's blank one, with no picture id in its address
+        if pic and "/artist//" not in pic and _title_is(r.get("name", ""), artist, exact=True):
+            img = _get(pic, log, accept="image/*")
+            if img:
+                return img, f"{r['name']} (artist photo)", "no cover found for the song or its album"
+    return None
+
+
+def online(title: str, artist: str, log=print, album: str = "") -> tuple[bytes, dict] | None:
+    """Search by title and artist, trying a few readings of the name: the
+    song's cover, else its album's (from the album tag), else another cover by
+    the same artist, else a photo of the artist. The record says what it
+    matched, to check in the Details tab."""
+    _searched.clear()
+    last_mb = [0.0]
+
+    def mb(fn):
+        def call(*args, **kw):
+            time.sleep(max(0.0, 1.1 - (time.monotonic() - last_mb[0])))    # one request a second
+            last_mb[0] = time.monotonic()
+            return fn(*args, **kw)
+        return call
+
+    MB, IT, DZ = "MusicBrainz / Cover Art Archive", "iTunes", "Deezer"
+    tries = guesses(title, artist)
+    artists = list(dict.fromkeys(a for _, a in tries if a))
+    album = _clean(album)
+    steps = []
+    for t, a in tries:                                   # the song itself
+        steps += [(f"{a + ' - ' if a else ''}{t}" + ("" if a else " (title only)"), MB, mb(musicbrainz), (t, a)),
+                  ("", IT, itunes, (t, a)), ("", DZ, deezer_song, (t, a))]
+    for a in artists if album else []:                   # its album
+        steps += [(f"the album {a} - {album}", MB, mb(musicbrainz_album), (album, a)),
+                  ("", IT, itunes_album, (album, a)), ("", DZ, deezer_album, (album, a))]
+    for t, a in tries:                                   # another cover by the same artist
+        if a:
+            steps.append((f"any cover by {a}", MB, mb(musicbrainz), (t, a, None, True)))
+    for a in artists:                                    # a photo of the artist
+        steps.append((f"a photo of {a}", DZ, deezer_artist, (a,)))
+    for what, name, fn, args in steps:
+        if what:
+            log(f"  artwork: looking for {what}")
+        if len(args) == 4:                               # the loose MusicBrainz search
+            found = fn(args[0], args[1], log, loose=True)
+        else:
+            found = fn(*args, log)
+        if found and _size(found[0])[0] >= MIN_SIZE:
+            where = {"from": name, "match": found[1]}
+            if found[2]:
+                where["note"] = found[2]
+            elif args[-1] == "":
+                where["note"] = "matched by title only: check it's the right song"
+            return found[0], where
     log(f"  artwork: nothing found online for {title}")
     return None
 
@@ -361,6 +509,15 @@ def describe(where: dict) -> str:
     return out
 
 
+def album_of(src: Path) -> str:
+    try:
+        import mutagen
+        f = mutagen.File(str(src), easy=True)
+        return ((f.tags or {}).get("album") or [""])[0].strip() if f else ""
+    except Exception:
+        return ""
+
+
 def find(src: Path, title: str, artist: str, song: Path | None = None, look_online: bool = False,
          log=print) -> tuple[bytes | None, dict]:
     """The picture for a song and where it came from. With the song folder
@@ -377,7 +534,7 @@ def find(src: Path, title: str, artist: str, song: Path | None = None, look_onli
         return data, {"from": "the song file's cover art"}
     if look_online:
         print("progress: finding artwork", file=sys.stderr, flush=True)
-        found = online(title, artist, log)
+        found = online(title, artist, log, album_of(src))
         if found:
             return found
     return None, {"from": None}
