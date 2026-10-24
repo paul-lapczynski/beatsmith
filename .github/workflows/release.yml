@@ -1,16 +1,46 @@
 # Builds the Windows installers (packaging/build.bat) and the macOS disk image
 # (packaging/build-mac.sh). Every merge to main builds both, so a tag goes on a
 # commit known to build; push a tag like v1.2.0 to publish a GitHub release with
-# all of them attached. Pull requests that touch packaging, and "Run workflow" on
-# the Actions tab, make test builds kept as workflow artifacts.
+# all of them attached. Pull requests make the same test builds, kept as workflow
+# artifacts, as does "Run workflow" on the Actions tab. Changes to docs and
+# pictures alone don't build.
 name: Release
 
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ["v*"]                  # tags always build; the paths below don't apply to them
+    paths:
+      # everything goes into the build except docs, pictures and side folders;
+      # later lines win, so packaging and this workflow always count
+      - "**"
+      - "!**/*.md"
+      - "!**/*.png"
+      - "!docs/**"
+      - "!dialtest/**"
+      - "!training/**"
+      - "!reviews/**"
+      - "!branding/**"
+      - "!examples/**"
+      - "!.github/**"
+      - "packaging/**"
+      - ".github/workflows/release.yml"
   pull_request:
-    paths: ["packaging/**", ".github/workflows/release.yml"]
+    paths:                        # the same list as above
+      # everything goes into the build except docs, pictures and side folders;
+      # later lines win, so packaging and this workflow always count
+      - "**"
+      - "!**/*.md"
+      - "!**/*.png"
+      - "!docs/**"
+      - "!dialtest/**"
+      - "!training/**"
+      - "!reviews/**"
+      - "!branding/**"
+      - "!examples/**"
+      - "!.github/**"
+      - "packaging/**"
+      - ".github/workflows/release.yml"
   workflow_dispatch:
 
 concurrency:
