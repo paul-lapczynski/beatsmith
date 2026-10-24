@@ -1,7 +1,7 @@
 ; Inno Setup script for the stepgen app. Built by build.bat; see BUILD.md.
 #define AppVersion GetEnv("STEPGEN_VERSION")
 #if AppVersion == ""
-  #define AppVersion "1.0.0"
+  #define AppVersion "0.0.1"
 #endif
 
 [Setup]

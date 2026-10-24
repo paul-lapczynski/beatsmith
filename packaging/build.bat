@@ -7,7 +7,7 @@ rem It installs what it needs to build (Python, the .NET SDK, WiX) with winget i
 rem See BUILD.md.
 setlocal
 cd /d "%~dp0"
-if "%STEPGEN_VERSION%"=="" set STEPGEN_VERSION=1.1.0
+if "%STEPGEN_VERSION%"=="" set STEPGEN_VERSION=0.0.1
 
 rem ---- build tools --------------------------------------------------------
 where py >nul 2>nul || (
