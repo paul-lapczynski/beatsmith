@@ -27,7 +27,7 @@ SNAP = {0: ("#ff4b5c", "#a3121f"),                 # beat (4th)
 HOLD = ("#4fdc7a", "#1f7a3c")
 BG, LANE, BEAT_LINE, BAR_LINE, TEXT, SUB = "#14161c", "#1d2029", "#2a2e3a", "#5a6075", "#eef0f6", "#9aa1b5"
 
-LANE_W, BEAT_H, PAD_TOP, PAD_SIDE, ARROW_PX = 48, 44, 76, 34, 40
+LANE_W, BEAT_H, PAD_TOP, PAD_SIDE, ARROW_PX = 48, 44, 92, 34, 40
 
 
 def bars_to_show(song: harness.Song, n: int = 4) -> int:
@@ -173,12 +173,74 @@ FEEL_LABELS = {
 }
 
 
-def _sub(song, notes) -> str:
+def _jacks(notes) -> int:
+    ns = sorted(notes, key=lambda n: n.row)
+    return sum(1 for a, b in zip(ns, ns[1:]) if len(a.panels) == len(b.panels) == 1 and a.panels == b.panels)
+
+
+def _offbeat(notes) -> str:
+    n = max(len(notes), 1)
+    e = sum(1 for x in notes if x.row % R == R // 2)
+    s = sum(1 for x in notes if x.row % 2)
+    return f"{100 * e / n:.0f}% 8ths · {100 * s / n:.0f}% 16ths"
+
+
+def _pauses(notes) -> int:
+    """Gaps of a beat or more between steps (holds count as steps)."""
+    ns = sorted(notes, key=lambda n: n.row)
+    return sum(1 for a, b in zip(ns, ns[1:]) if b.row - (a.row + a.hold_rows) >= 2 * R)
+
+
+# what each picture's slider changes, counted in a stretch of notes; the
+# pictures show the 4 bars where it changes most, the same way it does
+# across the whole chart
+MEASURE = {
+    "jumps": lambda ns: sum(len(x.panels) > 1 for x in ns),
+    "holds": lambda ns: sum(1 for x in ns if x.hold_rows),
+    "speed": lambda ns: sum(1 for x in ns if x.row % R) + 2 * sum(1 for x in ns if x.row % 2),
+    "targets-off": lambda ns: sum(1 for x in ns if x.row % R) + 2 * sum(1 for x in ns if x.row % 2),
+    "footwork": lambda ns: -_jacks(ns),
+    "breathing": _pauses,
+}
+EXTRA = {   # the slider's own number, under the column title
+    "speed": lambda ns: _offbeat(ns),
+    "targets-off": lambda ns: _offbeat(ns),
+    "footwork": lambda ns: f"{100 * _jacks(ns) / max(len(ns), 1):.1f} jacks per 100 steps",
+    "breathing": lambda ns: f"{_pauses(ns)} pauses of a beat or more",
+}
+
+
+def _sub(song, notes, key: str = "") -> str:
     n = len(notes)
     j = sum(len(x.panels) > 1 for x in notes)
     h = sum(1 for x in notes if x.hold_rows)
-    return (f"meter {stepgen.estimate_meter(notes, song.a.spb):.1f} · {n} steps\n"
-            f"{100 * j / max(n, 1):.0f}% jumps · {h} freezes")
+    out = (f"meter {stepgen.estimate_meter(notes, song.a.spb):.1f} · {n} steps\n"
+           f"{100 * j / max(n, 1):.0f}% jumps · {h} freezes")
+    return out + ("\n" + EXTRA[key](notes) if key in EXTRA else "")
+
+
+def window_for(key: str, charts: list, default: int, n: int = 4) -> int:
+    """First bar of the n bars that show the slider best: its measure moves
+    the same way from column to column as it does over the whole charts,
+    by as much as possible. Without a measure, the default bars."""
+    f = MEASURE.get(key)
+    if f is None:
+        return default
+    whole = [f(c) for c in charts]
+    sign = 1 if whole[-1] >= whole[0] else -1
+    last = max(max(x.row for x in c) for c in charts) // 16
+    best, start = None, default
+    for b in range(0, max(1, last - n + 1), 2):
+        part = [f([x for x in c if b * 16 <= x.row < (b + n) * 16]) for c in charts]
+        if min(len([x for x in c if b * 16 <= x.row < (b + n) * 16]) for c in charts) < 14:
+            continue
+        steps = [sign * (q - p) for p, q in zip(part, part[1:])]
+        if min(steps) < 0:
+            continue
+        score = (sign * (part[-1] - part[0]), -abs(b - default))
+        if best is None or score > best:
+            best, start = score, b
+    return start
 
 
 def sets_to_draw():
@@ -209,15 +271,15 @@ def sets_to_draw():
 def all_images(song_path: Path, song_name: str):
     IMG.mkdir(parents=True, exist_ok=True)
     song = harness.load_song(song_path, song_name.replace(" ", "_").lower())
-    bar0 = bars_to_show(song)
+    default = bars_to_show(song)
     (IMG / "legend.svg").write_text(legend(), encoding="utf-8")
     to_png(IMG / "legend.svg")
     made = {}
     for fname, heading, cols, diff in sets_to_draw():
-        panels = []
-        for title, cfg in cols:
-            ch = [c for c in harness.make_charts(song, cfg) if c.diff == diff][0]
-            panels.append((title, _sub(song, ch.notes), ch.notes))
+        key = fname.removeprefix("feel-")
+        charts = [[c for c in harness.make_charts(song, cfg) if c.diff == diff][0].notes for _t, cfg in cols]
+        bar0 = window_for(key, charts, default)
+        panels = [(title, _sub(song, ns, key), ns) for (title, _cfg), ns in zip(cols, charts)]
         note = f"{song_name}, {diff}, konami profile, seed 1, bars {bar0 + 1}-{bar0 + 4}"
         p = IMG / f"{fname}.svg"
         p.write_text(comparison(panels, bar0, 4, heading, note), encoding="utf-8")
