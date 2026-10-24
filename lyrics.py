@@ -1,5 +1,5 @@
 """Read the words off a song's separated vocals with Whisper (faster-whisper),
-so stepgen can tell a chorus (the same words coming back) from a verse (the
+so BeatSmith can tell a chorus (the same words coming back) from a verse (the
 same music with new words). Run by the optional lyrics add-on's own Python:
 
     python lyrics.py fetch <model folder>                  # download the model

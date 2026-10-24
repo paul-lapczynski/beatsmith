@@ -1,6 +1,6 @@
 """AI verse detection: name a song's sections from its lyrics.
 
-stepgen's own section names are guesses from the music (loudness, what
+BeatSmith's own section names are guesses from the music (loudness, what
 repeats). The words settle what the music can't: a chorus is the same words
 coming back, a verse is new words (often over the same music as another
 verse), and no words at all is an intro, outro, break or solo. The words come

@@ -31,7 +31,7 @@ CACHE = WORK / "cache"
 
 
 def _frame(self, t: float) -> int:
-    # stepgen's Analysis.frame without np.clip on a scalar (same result, ~10x
+    # BeatSmith's Analysis.frame without np.clip on a scalar (same result, ~10x
     # faster); half the time of a chart went there
     return min(max(int(round(t * stepgen.SR / stepgen.HOP)), 0), len(self.onset_env) - 1)
 
@@ -74,7 +74,7 @@ def load_song(path: Path, name: str | None = None, bpm: float | None = None,
     name = name or path.stem
     CACHE.mkdir(exist_ok=True)
     st = path.stat()
-    # a new cache when the song or stepgen's analysis code changes
+    # a new cache when the song or BeatSmith's analysis code changes
     import inspect
     code = inspect.getsource(stepgen.analyze) + inspect.getsource(stepgen.refine_bpm)
     key = hashlib.md5(f"{path.resolve()}|{st.st_size}|{st.st_mtime}|{bpm}|{stems}|{code}".encode()).hexdigest()[:10]
@@ -112,7 +112,7 @@ class Config:
     def easy(self) -> dict[str, float]:
         out = {k: v / 100 for k, v in self.feel if v != 50}
         if self.groove:
-            out["groove"] = 0.5 + self.groove / 200        # stepgen_app.groove_easy
+            out["groove"] = 0.5 + self.groove / 200        # beatsmith_app.groove_easy
         return out
 
     def run_sets(self) -> list[str]:

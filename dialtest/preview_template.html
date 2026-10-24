@@ -1,4 +1,4 @@
-<title>stepgen Dial Preview</title>
+<title>BeatSmith Dial Preview</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Bai+Jamjuree:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -79,7 +79,7 @@ footer { color: var(--muted); font-size: .82rem; max-width: 70ch; }
 
 <div class="wrap">
   <header>
-    <h1>stepgen <span>dial preview</span></h1>
+    <h1>BeatSmith <span>dial preview</span></h1>
     <p class="lede" id="lede">Pick a control and move its slider: the right playfield shows the same 4 bars made at that setting, the left one at the default. Press Play to hear the song with a tick on every step.</p>
   </header>
 
@@ -128,7 +128,7 @@ const ROT = [0, -Math.PI / 2, Math.PI / 2, Math.PI];
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const COL = { 0: [css("--beat"), "#a3121f"], 2: [css("--half"), "#1b3f99"], 1: [css("--quarter"), "#9c7a00"], 3: [css("--quarter"), "#9c7a00"] };
 const HOLDC = [css("--hold"), "#1f7a3c"];
-const STATS = [["meter", "Difficulty (stepgen's rating)", 1], ["steps", "Steps", 0], ["jumps", "Jumps, % of steps", 0],
+const STATS = [["meter", "Difficulty (BeatSmith's rating)", 1], ["steps", "Steps", 0], ["jumps", "Jumps, % of steps", 0],
   ["freezes", "Freezes", 0], ["eighths", "Half-beat steps, %", 0], ["sixteenths", "Quarter-beat steps, %", 1], ["groove", "Groove meter", 0]];
 
 let dialIx = 0, pos = 0, diff = "Hard";
@@ -140,7 +140,7 @@ const chartAt = (d, i) => d.positions[i].charts[diff];
 
 function setup() {
   $("lede").textContent = `Pick a control and move its slider: the right playfield shows ${DATA.song}'s same 4 bars (bars ${DATA.bar0 + 1}-${DATA.bar0 + 4}, ${DATA.bpm} BPM) made at that setting, the left one at the default. Press Play to hear them with a tick on every step.`;
-  $("foot").textContent = `Made by stepgen's dial test with the ${DATA.profile} profile, seed 1, the app's default targets (Easy 3, Medium 6, Hard 8) and everything else at its default. Each slider is shown on its own; combinations aren't pre-made. The table is the whole song's chart, the playfields 4 bars of it.`;
+  $("foot").textContent = `Made by BeatSmith's dial test with the ${DATA.profile} profile, seed 1, the app's default targets (Easy 3, Medium 6, Hard 8) and everything else at its default. Each slider is shown on its own; combinations aren't pre-made. The table is the whole song's chart, the playfields 4 bars of it.`;
   const chips = $("chips");
   DATA.dials.forEach((d, i) => {
     const b = document.createElement("button");

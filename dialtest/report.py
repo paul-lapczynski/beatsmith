@@ -204,7 +204,7 @@ def main():
     L: list[str] = []
     w = L.append
     songs = sorted(df["song"].unique())
-    w("# stepgen dial test report\n")
+    w("# BeatSmith dial test report\n")
     w(f"Made by `dialtest.py report` from {len(df):,} charts ({len(df) // 3:,} runs) on "
       f"{', '.join(songs)}. Test design: [TESTPLAN.md](TESTPLAN.md). "
       "\"S/N\" below is a change divided by what changing only the seed does (the noise): "
@@ -335,7 +335,7 @@ def main():
     B = df[df["design"] == "B"]
     diff_info = {}
     if not B.empty:
-        w("Every chart aimed at 1 to 10 (both profiles, 3 songs, 3 seeds). stepgen rates each try "
+        w("Every chart aimed at 1 to 10 (both profiles, 3 songs, 3 seeds). BeatSmith rates each try "
           "and turns one intensity dial (`with_intensity`) until the rating lands: 0 is the profile as "
           "written, up to +1 adds steps, jumps and 8th runs and takes away holds, past +0.6 it adds "
           "quarter-beat bursts, past +1 16th streams; below -0.4 it drops to beat notes only.\n")

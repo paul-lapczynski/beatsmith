@@ -1,13 +1,13 @@
 @echo off
-rem Builds the stepgen app and its installers:
-rem   dist\stepgen\stepgen.exe          the app, runnable as-is
-rem   dist\stepgen-<version>.msi        the MSI installer
-rem   dist\stepgen-setup-<version>.exe  an .exe installer too, if Inno Setup is installed
+rem Builds the BeatSmith app and its installers:
+rem   dist\BeatSmith\BeatSmith.exe          the app, runnable as-is
+rem   dist\BeatSmith-<version>.msi        the MSI installer
+rem   dist\BeatSmith-setup-<version>.exe  an .exe installer too, if Inno Setup is installed
 rem It installs what it needs to build (Python, the .NET SDK, WiX) with winget if missing.
 rem See BUILD.md.
 setlocal
 cd /d "%~dp0"
-if "%STEPGEN_VERSION%"=="" set STEPGEN_VERSION=0.0.1
+if "%BEATSMITH_VERSION%"=="" set BEATSMITH_VERSION=0.0.1
 
 rem ---- build tools --------------------------------------------------------
 where py >nul 2>nul || (
@@ -41,24 +41,24 @@ if not exist ffmpeg\ffmpeg.exe (
   if not exist ffmpeg\ffmpeg.exe echo   (couldn't fetch ffmpeg; the app still works for mp3/ogg/wav/flac)
 )
 
-pyinstaller --noconfirm --clean --distpath dist --workpath build stepgen.spec || goto :fail
+pyinstaller --noconfirm --clean --distpath dist --workpath build beatsmith.spec || goto :fail
 
 rem ---- installers ---------------------------------------------------------
-python harvest.py dist\stepgen files.wxs || goto :fail
-wix build stepgen.wxs files.wxs -arch x64 -ext WixToolset.UI.wixext -d Version=%STEPGEN_VERSION% -o dist\stepgen-%STEPGEN_VERSION%.msi || goto :fail
+python harvest.py dist\BeatSmith files.wxs || goto :fail
+wix build beatsmith.wxs files.wxs -arch x64 -ext WixToolset.UI.wixext -d Version=%BEATSMITH_VERSION% -o dist\BeatSmith-%BEATSMITH_VERSION%.msi || goto :fail
 rem a real build is well over 100 MB; a tiny MSI means the app files didn't go in
-for %%F in (dist\stepgen-%STEPGEN_VERSION%.msi) do if %%~zF LSS 50000000 (
+for %%F in (dist\BeatSmith-%BEATSMITH_VERSION%.msi) do if %%~zF LSS 50000000 (
   echo The MSI is only %%~zF bytes, so the app files are missing from it.
   goto :fail
 )
 
 set ISCC="%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if not exist %ISCC% set ISCC="%ProgramFiles%\Inno Setup 6\ISCC.exe"
-rem STEPGEN_SKIP_EXE=1 skips it (test builds only need the MSI)
-if not "%STEPGEN_SKIP_EXE%"=="1" if exist %ISCC% %ISCC% installer.iss
+rem BEATSMITH_SKIP_EXE=1 skips it (test builds only need the MSI)
+if not "%BEATSMITH_SKIP_EXE%"=="1" if exist %ISCC% %ISCC% installer.iss
 
 echo.
-echo Done. Installer: %~dp0dist\stepgen-%STEPGEN_VERSION%.msi
+echo Done. Installer: %~dp0dist\BeatSmith-%BEATSMITH_VERSION%.msi
 exit /b 0
 
 :fail

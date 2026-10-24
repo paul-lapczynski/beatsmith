@@ -1,4 +1,4 @@
-"""stepgen dial test: what every control actually does to a chart.
+"""BeatSmith dial test: what every control actually does to a chart.
 
     python dialtest.py run [--quick] [--jobs 4] [--only A,B] SONG.ogg ...
     python dialtest.py report          # REPORT.md: grades and numbers
@@ -39,7 +39,7 @@ SONGS = {
 }
 # the pictures and the preview use this one: synthesized by demo_track.py, so it can ship
 # with the repo (the songs above are copyrighted and stay out of it)
-DEMO = ("Stepgen Demo", SG / "examples" / "Stepgen Demo" / "stepgen-demo.ogg")
+DEMO = ("BeatSmith Demo", SG / "examples" / "BeatSmith Demo" / "beatsmith-demo.ogg")
 # settings recorded per chart, as asked (after sliders and pins) and as used (after the target)
 SPEC_KEYS = ("density", "max_nps", "grid", "min_gap", "jump", "hold_rate", "half_beats", "quarter_beats",
              "flow_spice", "sixteenths", "run_breaks", "recovery", "stomps", "jacks", "flow",

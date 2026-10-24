@@ -1,12 +1,12 @@
-"""stepgen app: a window around stepgen.py.
+"""BeatSmith app: a window around stepgen.py.
 
 Queue up songs (files, whole folders, or drag and drop), pick a style and
 how hard each chart should be, and it writes one song folder per song into
 the output folder you choose.
 
-    python stepgen_app.py
+    python beatsmith_app.py
 
-Needs PySide6 on top of stepgen's own requirements (pip install PySide6).
+Needs PySide6 on top of BeatSmith's own requirements (pip install PySide6).
 """
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ import time
 from dataclasses import fields
 from pathlib import Path
 
-# the installed app runs stepgen itself in child processes: "stepgen.exe
-# --run-stepgen <args>" is the command-line tool
+# the installed app runs the step generator in child processes:
+# "BeatSmith.exe --run-stepgen <args>" is stepgen.py's command line
 if len(sys.argv) > 1 and sys.argv[1] == "--run-stepgen":
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import stepgen
@@ -50,10 +50,11 @@ from PySide6.QtWidgets import (
 HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 sys.path.insert(0, str(HERE))
 import stepgen  # noqa: E402
+import layout  # noqa: E402
 from layout import file_name, find_sm, out_of, side, song_dirs, song_folders, work_root  # noqa: E402
 import artwork  # noqa: E402
 
-APP_NAME = "stepgen"
+APP_NAME = "BeatSmith"
 AUDIO_EXT = {".mp3", ".ogg", ".wav", ".flac", ".m4a", ".aac", ".wma", ".opus"}
 CHART_EXT = {".sm", ".ssc", ".dwi"}
 DIFFS = ("Easy", "Medium", "Hard")
@@ -129,7 +130,7 @@ def safe_name(s: str) -> str:
 
 
 def foreign_charts(folder: Path) -> list[Path]:
-    """Charts in this folder (and one level down) that stepgen didn't write."""
+    """Charts in this folder (and one level down) that BeatSmith didn't write."""
     found = []
     if not folder.is_dir():
         return found
@@ -139,7 +140,7 @@ def foreign_charts(folder: Path) -> list[Path]:
                 head = f.read_text(encoding="utf-8", errors="replace")[:4000]
             except OSError:
                 continue
-            if "#CREDIT:stepgen" not in head:
+            if not re.search(r"#CREDIT:(BeatSmith|stepgen)", head):       # stepgen: before the rename
                 found.append(f)
     return found
 
@@ -242,7 +243,7 @@ class ArtFinder(QObject):
 class Window(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("stepgen")
+        self.setWindowTitle("BeatSmith")
         self.resize(1250, 800)
         self.settings = QSettings(APP_NAME, APP_NAME)
         self.jobs: list[Job] = []
@@ -308,7 +309,7 @@ class Window(QMainWindow):
             bar.addWidget(b)
         bar.addStretch()
         self.show_made = QCheckBox("Show songs already made")
-        self.show_made.setToolTip("List the songs stepgen has already made in the output folder, "
+        self.show_made.setToolTip("List the songs BeatSmith has already made in the output folder, "
                                   "with their meters and settings, so you can see what you have, "
                                   "open them in the editor or regenerate them.")
         self.show_made.toggled.connect(self.refresh_made)
@@ -399,8 +400,8 @@ class Window(QMainWindow):
         self.out_edit.setPlaceholderText("Pick a folder")
         self.out_edit.setToolTip("Each song gets a folder in here with just the chart, the song and its "
                                  "pictures, so this can be a group folder in StepMania's Songs folder "
-                                 "(e.g. Songs/AATesting). Stats, settings and the rest go in stepgen's own "
-                                 "data folder. A song folder that already has charts stepgen didn't make is "
+                                 "(e.g. Songs/AATesting). Stats, settings and the rest go in BeatSmith's own "
+                                 "data folder. A song folder that already has charts BeatSmith didn't make is "
                                  "never touched.")
         b = QPushButton("Browse…")
         b.clicked.connect(self.pick_out_dir)
@@ -408,7 +409,7 @@ class Window(QMainWindow):
         row.addWidget(b)
         f.addRow("Output folder", row)
         self.out_edit.editingFinished.connect(self.refresh_made)
-        self.skip_done = QCheckBox("Skip songs that already have stepgen charts there")
+        self.skip_done = QCheckBox("Skip songs that already have BeatSmith charts there")
         self.skip_done.setChecked(True)
         f.addRow(self.skip_done)
         v.addWidget(out)
@@ -424,8 +425,8 @@ class Window(QMainWindow):
         # the song's tempo, when detection gets it wrong (0 = detect it)
         self.bpm = QDoubleSpinBox(minimum=0, maximum=400, decimals=3, singleStep=1, value=0)
         self.bpm.setSpecialValueText("detect")
-        self.bpm.setToolTip("The song's BPM, if stepgen reads it wrong (a tap sync in the Edit tab or an "
-                            "online BPM finder tells you). Leave on 'detect' to let stepgen find it.")
+        self.bpm.setToolTip("The song's BPM, if BeatSmith reads it wrong (a tap sync in the Edit tab or an "
+                            "online BPM finder tells you). Leave on 'detect' to let BeatSmith find it.")
         g.addRow("BPM", self.bpm)
         # optional: cut the song down the way arcade versions are (shorten.py)
         self.shorten = QComboBox()
@@ -576,7 +577,7 @@ class Window(QMainWindow):
         sg = QGridLayout(self.sec_box)
         sg.setContentsMargins(16, 0, 0, 0)
         note = QLabel("Moving one of these sets that kind of section by hand; the rest keep "
-                      "following the slider above. Section names are stepgen's best guess "
+                      "following the slider above. Section names are BeatSmith's best guess "
                       "(each song's stats list what it found).")
         note.setWordWrap(True)
         sg.addWidget(note, 0, 0, 1, 3)
@@ -621,7 +622,7 @@ class Window(QMainWindow):
         self.ai.setTickPosition(QSlider.TicksBelow)
         self.ai.valueChanged.connect(self.refresh_advanced)
         gl.addWidget(QLabel("<b>Steps placed by</b>"), 0, 0)
-        gl.addWidget(QLabel("stepgen's rules"), 0, 1, alignment=Qt.AlignRight)
+        gl.addWidget(QLabel("BeatSmith's rules"), 0, 1, alignment=Qt.AlignRight)
         gl.addWidget(self.ai, 0, 2)
         gl.addWidget(QLabel("the AI model"), 0, 3)
         if ai_ready():
@@ -851,7 +852,7 @@ class Window(QMainWindow):
             text = ("Found the Apple Silicon GPU: vocal separation and AI assist use it. AI verse "
                     "detection runs on the CPU (Whisper has no Apple GPU support).")
         else:
-            text = "No GPU found that stepgen can use; everything runs on the CPU."
+            text = "No GPU found that BeatSmith can use; everything runs on the CPU."
         self.gpu_label.setText(text)
 
     # ------------------------------------------------------------- settings
@@ -982,7 +983,7 @@ class Window(QMainWindow):
         if not ok or not safe_name(name):
             return
         specs = self.effective_specs()
-        lines = [f"# {name}: saved from the stepgen app", ""]
+        lines = [f"# {name}: saved from the BeatSmith app", ""]
         skip = {"name", "meter_min", "meter_max"}
         for s in specs:
             lines.append(f"[{s.name}]")
@@ -1091,7 +1092,7 @@ class Window(QMainWindow):
         return " · ".join(parts)
 
     def args_for(self, d: dict) -> list[str]:
-        """stepgen command-line arguments for one song's settings."""
+        """BeatSmith command-line arguments for one song's settings."""
         prof = profile_paths().get(d.get("profile"), stepgen.DEFAULT_PATTERNS)
         args = ["--profile", str(prof), "--seed", str(d.get("seed", 1))]
         if d.get("bpm"):
@@ -1189,7 +1190,7 @@ class Window(QMainWindow):
                         "To change them, regenerate the song.")
                 if not first.settings:
                     text = (f"<b>{first.title}</b> was made before the app kept each song's settings, "
-                            "so they aren't known (the stats below show what stepgen recorded). "
+                            "so they aren't known (the stats below show what BeatSmith recorded). "
                             "To change them, regenerate the song.")
                 colour = "#f2f2f2"
             elif len(jobs) == 1:
@@ -1255,7 +1256,7 @@ class Window(QMainWindow):
             return
         self.editor.stop()
         if self.running and QMessageBox.question(
-                self, "stepgen", "Songs are still being charted. Stop them and quit?") != QMessageBox.Yes:
+                self, "BeatSmith", "Songs are still being charted. Stop them and quit?") != QMessageBox.Yes:
             ev.ignore()
             return
         self.cancel()
@@ -1683,7 +1684,7 @@ class Window(QMainWindow):
     def out_dir(self) -> Path | None:
         text = self.out_edit.text().strip()
         if not text:
-            QMessageBox.warning(self, "stepgen", "Pick an output folder first.")
+            QMessageBox.warning(self, "BeatSmith", "Pick an output folder first.")
             return None
         return Path(text)
 
@@ -1717,7 +1718,7 @@ class Window(QMainWindow):
             title = out_title(job)
             folder = self.out / title
             if folder.exists() and foreign_charts(folder):
-                job.log = f"{folder} has charts stepgen didn't make, so it was left alone."
+                job.log = f"{folder} has charts BeatSmith didn't make, so it was left alone."
                 self._set_status(job, FAILED, "#c0392b")
                 continue
             if (self.skip_done.isChecked() and not job.force
@@ -1764,7 +1765,7 @@ class Window(QMainWindow):
             env.insert("PATH", str(ff) + os.pathsep + env.value("PATH"))
         env.insert("PYTHONUNBUFFERED", "1")
         env.insert("PYTHONIOENCODING", "utf-8")
-        env.insert("STEPGEN_DEVICE", self.device.currentData() or "auto")     # accel.py
+        env.insert("BEATSMITH_DEVICE", self.device.currentData() or "auto")     # accel.py
         p.setProcessEnvironment(env)
         p.setProcessChannelMode(QProcess.MergedChannels)
         p.readyReadStandardOutput.connect(lambda j=job: self._output(j))
@@ -1817,7 +1818,7 @@ class Window(QMainWindow):
                 pass
         else:
             last = [l for l in job.log.splitlines() if l.strip()][-1:] or ["no output"]
-            job.log += f"\n[stepgen stopped with code {code}]"
+            job.log += f"\n[BeatSmith stopped with code {code}]"
             self._set_status(job, f"{FAILED}: {last[0][:60]}", "#c0392b")
             job.status = FAILED
         self._update_progress()
@@ -1846,7 +1847,7 @@ class Window(QMainWindow):
 
 
 def groove_easy(v: int) -> float:
-    """The Groove slider (0 off .. 100) as stepgen's --easy groove value,
+    """The Groove slider (0 off .. 100) as BeatSmith's --easy groove value,
     where 0.5 changes nothing and 1 is the most."""
     return 0.5 + v / 200
 
@@ -1895,7 +1896,7 @@ def ai_ready() -> bool:
 
 def used_settings(sm: Path) -> str:
     """Markdown summary of the settings a chart was made with, from the
-    .stepgen.json stepgen writes beside it."""
+    .stepgen.json BeatSmith writes beside it."""
     meta = side(sm, ".stepgen.json")
     try:
         d = json.loads(meta.read_text(encoding="utf-8"))
@@ -1952,11 +1953,26 @@ def read_meters(sm: Path) -> dict[str, str]:
         return {}
 
 
+def move_old_settings():
+    """Settings and data from before the rename to BeatSmith (stepgen)."""
+    try:
+        layout.move_old_data()
+    except OSError:
+        pass
+    new = QSettings(APP_NAME, APP_NAME)
+    if not new.allKeys():
+        old = QSettings("stepgen", "stepgen")
+        for k in old.allKeys():
+            new.setValue(k, old.value(k))
+        new.sync()
+
+
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setOrganizationName(APP_NAME)
-    for icon in (HERE / "stepgen.png", HERE / "packaging" / "stepgen.png"):
+    move_old_settings()
+    for icon in (HERE / "beatsmith.png", HERE / "packaging" / "beatsmith.png"):
         if icon.is_file():
             app.setWindowIcon(QIcon(str(icon)))
             break

@@ -2,7 +2,7 @@
 (training/train.py), run with onnxruntime (on a GPU when accel.py finds one
 it can use, else the CPU). It scores every frame by
 how likely a chart maker would put a step there, at a given difficulty;
-stepgen blends that into step_env by the ai_assist setting.
+BeatSmith blends that into step_env by the ai_assist setting.
 
 Needs numpy, librosa and onnxruntime (no PyTorch) and models/step_placement_v1.onnx.
 The audio features below must match training/model.py exactly.
@@ -85,7 +85,7 @@ def meter_for(spec) -> float:
 
 def ai_env(y: np.ndarray, a, meter: float) -> np.ndarray:
     """Step probability per analysis frame (len(a.step_env)), normalized 0..1
-    like stepgen's other envelopes. y is the song at SR, mono. The mel is
+    like BeatSmith's other envelopes. y is the song at SR, mono. The mel is
     kept for the last song, so each difficulty only runs the model."""
     global _mel_cache
     from stepgen import _norm

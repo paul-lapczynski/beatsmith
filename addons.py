@@ -1,4 +1,4 @@
-"""Optional add-ons stepgen can download on request, kept out of the
+"""Optional add-ons BeatSmith can download on request, kept out of the
 installer:
 
   stems    vocal separation (Demucs + PyTorch, about 1 GB)
@@ -66,7 +66,10 @@ def sources(kind: str) -> list[tuple[str, str]]:
 
 def addon_dir() -> Path:
     base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~/.local/share")
-    return Path(base) / "stepgen" / "addons" / "stems"
+    new, old = Path(base) / "BeatSmith" / "addons" / "stems", Path(base) / "stepgen" / "addons" / "stems"
+    # downloaded before the rename to BeatSmith: used where it is, as its
+    # Python may not work moved
+    return old if old.is_dir() and not new.is_dir() else new
 
 
 def whisper_dir() -> Path:
@@ -224,7 +227,7 @@ def _install_cuda_torch(py: Path, log) -> None:
     (addon_dir() / "gpu.ok").write_text("ok")
     log(f"GPU support is ready: {name}" if name else
         "GPU support is installed, but PyTorch can't see the GPU (an old NVIDIA driver?); "
-        "stepgen keeps using the CPU until it can")
+        "BeatSmith keeps using the CPU until it can")
 
 
 def _here() -> Path:

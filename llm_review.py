@@ -131,7 +131,7 @@ def settings_text(spec: sg.DiffSpec) -> str:
     text = ", ".join(f"{k}={v:g}" for k, v in vars(spec).items()
                      if k not in skip and isinstance(v, (int, float)))
     if spec.target_meter > 0:
-        text += (f"\n  (target_meter={spec.target_meter:g}: stepgen turned density, jump, hold_rate, "
+        text += (f"\n  (target_meter={spec.target_meter:g}: BeatSmith turned density, jump, hold_rate, "
                  "half_beats, quarter_beats and flow_spice up or down together until the chart rated "
                  "that number, so suggest a different target_meter to change how hard it is, and the "
                  "other settings to change its feel)")
@@ -147,7 +147,7 @@ def load_meta(sm: Path) -> tuple[dict, Path]:
     if not music.is_file():
         sys.exit(f"can't find the song file {music} next to the chart")
     if "profile" not in meta:
-        credit = re.search(r"#CREDIT:stepgen ([^;]*);", sm.read_text(encoding="utf-8", errors="replace"))
+        credit = re.search(r"#CREDIT:(?:BeatSmith|stepgen) ([^;]*);", sm.read_text(encoding="utf-8", errors="replace"))
         meta["profile"] = credit.group(1).strip() if credit else "patterns"
     # charts copied between computers: re-run from the song next to the chart
     if not meta.get("source") or not Path(meta["source"]).is_file():
@@ -289,7 +289,7 @@ KNOWN = set(sg.DiffSpec.__dataclass_fields__) - {"name"}
 
 
 def valid_sets(o: dict) -> list[str]:
-    """Only changes stepgen understands: Difficulty.setting=number."""
+    """Only changes BeatSmith understands: Difficulty.setting=number."""
     out = []
     for s in o.get("set", []):
         s = str(s).replace(" ", "")
@@ -345,7 +345,7 @@ def report(rv: dict, meta: dict, provider: str, model: str) -> str:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("chart", type=Path, help="a .sm made by stepgen")
+    ap.add_argument("chart", type=Path, help="a .sm made by BeatSmith")
     ap.add_argument("--provider", choices=["gemini", "claude", "local"], default="gemini")
     ap.add_argument("--model", help="model name (defaults: " + ", ".join(f"{k} {v}" for k, v in DEFAULT_MODELS.items()) + ")")
     ap.add_argument("--local-url", default=os.environ.get("LOCAL_LLM_URL", "http://localhost:1234/v1"),

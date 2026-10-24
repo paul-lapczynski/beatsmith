@@ -1,5 +1,5 @@
 """Split a song into stems (vocals, drums, bass, other) with Demucs, so
-stepgen can follow the vocal or lead line instead of everything tonal.
+BeatSmith can follow the vocal or lead line instead of everything tonal.
 
     python stems.py "My Song.ogg"            # writes My Song.stems/ next to it
     python stems.py "My Song.mp3" out_dir
@@ -25,7 +25,7 @@ MODEL = "htdemucs"
 
 
 def stems_dir_for(song_folder: Path) -> Path:
-    """Where stepgen keeps a song's stems: a hidden folder in its song folder."""
+    """Where BeatSmith keeps a song's stems: a hidden folder in its song folder."""
     return song_folder / ".stems"
 
 

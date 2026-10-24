@@ -13,7 +13,7 @@ Five things, each 0..1 per measure, averaged into a score out of 100:
              quiet
 
 Only needs the steps and the song's audio, so it works on any chart (the
-editor, stepgen's own output, Konami's). The weights are a first guess:
+editor, BeatSmith's own output, Konami's). The weights are a first guess:
 marking where you actually groove in play tests (hold G) is how they get
 checked.
 """

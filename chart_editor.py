@@ -1,4 +1,4 @@
-"""Chart editor for stepgen: play the song, watch the steps scroll, and edit
+"""Chart editor for BeatSmith: play the song, watch the steps scroll, and edit
 them with the mouse or the keyboard.
 
 Runs as the app's Edit tab, or on its own:  python chart_editor.py song.sm
@@ -160,7 +160,7 @@ class SMFile:
         self.text = self.text[:a] + new + self.text[b:]
         # the offset is the file's, shared by all its charts
         self.text = re.sub(r"#OFFSET:[^;]*;", f"#OFFSET:{self.offset:.3f};", self.text, count=1)
-        # kept out of the StepMania folder when stepgen made the song (layout.py)
+        # kept out of the StepMania folder when BeatSmith made the song (layout.py)
         bak = side(self.path, ".sm.bak")
         if not bak.exists():
             bak.write_bytes(self.path.read_bytes())
@@ -1282,7 +1282,7 @@ class EditorWidget(QWidget):
         self.vol = QSlider(Qt.Horizontal, minimum=0, maximum=100)
         self.vol.setFixedWidth(110)
         self.vol.valueChanged.connect(self._volume)
-        self.vol.setValue(int(QSettings("stepgen", "stepgen").value("editor/volume", 50)))
+        self.vol.setValue(int(QSettings("BeatSmith", "BeatSmith").value("editor/volume", 50)))
         self._volume(self.vol.value())
         top.addWidget(QLabel("🔊"))
         top.addWidget(self.vol)
@@ -1395,13 +1395,13 @@ class EditorWidget(QWidget):
             self.onset = groove.onset_env(self.player.data[::2], self.player.sr // 2)
         except Exception:
             self.onset = None
-        # stepgen keeps a beat-only version of melody-following charts beside the song
+        # BeatSmith keeps a beat-only version of melody-following charts beside the song
         cmp = outer_of(path) / ".compare" / path.name
         try:
             self.compare_sm = SMFile(cmp) if cmp.is_file() else None
         except Exception:
             self.compare_sm = None
-        # temporary: stepgen makes "<title> (no AI)" beside songs made with AI assist
+        # temporary: BeatSmith makes "<title> (no AI)" beside songs made with AI assist
         self.twin_sm, self.twin_name = None, ""
         stem, tag = path.stem, " (no AI)"
         twin, self.twin_name = (stem[:-len(tag)], "With AI") if stem.endswith(tag) else (stem + tag, "No AI")
@@ -1425,7 +1425,7 @@ class EditorWidget(QWidget):
 
     def _compare_options(self) -> dict[str, "ChartInfo"]:
         """What this chart can be shown beside: the song's other charts, and
-        its beat-only version when stepgen kept one."""
+        its beat-only version when BeatSmith kept one."""
         out: dict[str, ChartInfo] = {}
         if self.sm is None or not self.sm.charts:
             return out
@@ -1465,7 +1465,7 @@ class EditorWidget(QWidget):
     def _volume(self, v: int):
         self.player.volume = (v / 100) ** 2
         self.vol.setToolTip(f"Volume {v}%")
-        QSettings("stepgen", "stepgen").setValue("editor/volume", v)
+        QSettings("BeatSmith", "BeatSmith").setValue("editor/volume", v)
 
     # ---- tap sync
     def toggle_tap(self):
@@ -1792,7 +1792,7 @@ class EditorWidget(QWidget):
         return text
 
     def rating(self) -> float:
-        """stepgen's Konami-fitted difficulty estimate for the chart as it is now."""
+        """BeatSmith's Konami-fitted difficulty estimate for the chart as it is now."""
         try:
             import stepgen
         except Exception:
@@ -1807,7 +1807,7 @@ class EditorWidget(QWidget):
         notes = []
         for t, cols in sorted(rows.items()):
             held = any(s.tick == t and s.kind in "24" for s in self.field.steps)
-            # stepgen rates on a 16th grid
+            # BeatSmith rates on a 16th grid
             notes.append(stepgen.Note(row=round(t * 4 / TPB), time=0, strength=0, kick=0,
                                       panels=cols, hold_rows=1 if held else 0))
         return stepgen.estimate_meter(notes, 60 / bpm)
@@ -1819,7 +1819,7 @@ def main():
     ed = EditorWidget()
     win.setCentralWidget(ed)
     win.resize(900, 900)
-    win.setWindowTitle("stepgen editor")
+    win.setWindowTitle("BeatSmith editor")
     win.show()
     if len(sys.argv) > 1:
         ed.open(Path(sys.argv[1]))

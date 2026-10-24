@@ -71,26 +71,35 @@ def file_name(title: str, artist: str = "") -> str:
     return (f"{a} - {t}" if a and t else t or a) or "song"
 
 
-def data_dir() -> Path:
+def data_dir(name: str = "BeatSmith") -> Path:
     """The app's own data folder, the one the app's QStandardPaths
-    AppDataLocation gives (STEPGEN_DATA overrides it)."""
-    if os.environ.get("STEPGEN_DATA"):
-        return Path(os.environ["STEPGEN_DATA"])
+    AppDataLocation gives (BEATSMITH_DATA overrides it)."""
+    if os.environ.get("BEATSMITH_DATA"):
+        return Path(os.environ["BEATSMITH_DATA"])
     if sys.platform == "win32":
         base = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
     elif sys.platform == "darwin":
         base = Path.home() / "Library" / "Application Support"
     else:
         base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
-    return base / "stepgen" / "stepgen"
+    return base / name / name
+
+
+def move_old_data() -> None:
+    """Before the rename to BeatSmith the app's data folder was
+    stepgen/stepgen: move it over the first time BeatSmith runs."""
+    old, new = data_dir("stepgen"), data_dir()
+    if old.is_dir() and not new.exists() and old != new:
+        new.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(old), str(new))
 
 
 def songs_data() -> Path:
     """Where the stats, settings and the rest of made songs go: the app's
     data folder when installed, song-data/ in the source folder when run
-    from source, so it's at hand while developing (STEPGEN_DATA overrides
+    from source, so it's at hand while developing (BEATSMITH_DATA overrides
     both)."""
-    if getattr(sys, "frozen", False) or os.environ.get("STEPGEN_DATA"):
+    if getattr(sys, "frozen", False) or os.environ.get("BEATSMITH_DATA"):
         return data_dir() / "songs"
     return Path(__file__).resolve().parent / "song-data"
 

@@ -1,6 +1,6 @@
-# stepgen dial test plan
+# BeatSmith dial test plan
 
-What this answers: for every control in stepgen (the app's Easy tab, the
+What this answers: for every control in BeatSmith (the app's Easy tab, the
 difficulty numbers, AI assist, Follow the melody and every Advanced
 setting), what it actually does to a chart, how well it does what its
 label says, and how the controls interact. The script `dialtest.py` runs
@@ -16,7 +16,7 @@ the whole space, and a sweep of the difficulty number.
 
 ### The controls (the "dials")
 
-| Group | Control | App scale | What it moves inside stepgen |
+| Group | Control | App scale | What it moves inside BeatSmith |
 |---|---|---|---|
 | Groove (overall) | groove | 0 off .. 100 | rhythm_repeat, beat_backbone, flow, jacks, energy_follow, phrase_shape, run_breaks, recovery, stomps, rhythm_lock, groove_tries (2-4 tries from about 20%) |
 | Feel | energy | 0..100, 50 = profile | energy_follow, crescendo, phrase_shape, rest_bars |
@@ -28,10 +28,10 @@ the whole space, and a sweep of the difficulty number.
 | Feel | repetition | same | rhythm_repeat, arrow_repeat, intensity_variation (down) |
 | Difficulty | target per chart | 1..10, or off | with_intensity(): density, max_nps, jump, hold_rate, half_beats, grid/min_gap, quarter_beats, flow_spice, then 16th streams |
 | Melody | Arrows follow | 0..100 | melody_follow (per section kind: chorus 100%, verse/bridge 60%, intro/outro/build 30%) |
-| AI | Steps placed by | 0..100 | ai_assist (blends the model's step envelope into stepgen's) |
+| AI | Steps placed by | 0..100 | ai_assist (blends the model's step envelope into BeatSmith's) |
 | Advanced | every DiffSpec field | exact values | 45 settings, pinned exactly; sliders can no longer move a pinned one |
 
-Order inside stepgen: profile -> groove -> feel sliders -> Advanced pins
+Order inside BeatSmith: profile -> groove -> feel sliders -> Advanced pins
 (`--set`) -> target (with_intensity rescales some of the same settings
 again at chart time). Follow and AI only change *where the music says a
 step could go* (the step envelope); everything after that is the feel.
@@ -67,7 +67,7 @@ from the notes plus the song analysis:
 
 | Area | Measurements |
 |---|---|
-| Amount | steps, steps/sec, stepgen's meter estimate, distance from the target |
+| Amount | steps, steps/sec, BeatSmith's meter estimate, distance from the target |
 | Jumps | jumps per 100 steps, jump freezes, share of jumps in the first 2 bars of a section (clustering), stomps |
 | Speed | share of beat / half-beat / quarter-beat steps, 16th count, longest 8th run |
 | Holds | holds per 100 steps, held beats, taps under holds |
@@ -152,7 +152,7 @@ two measurements with the direction they should move:
 | holds | none .. lots | holds per 100 steps (up) |
 | repetition | always fresh .. choruses identical | same rhythm and arrows in repeats (up) |
 | follow | the beat .. the tune | steps on melody onsets (up), arrows follow pitch (up) |
-| AI assist | stepgen's rules .. the AI model | steps on the model's moments (up), change vs AI 0 (up) |
+| AI assist | BeatSmith's rules .. the AI model | steps on the model's moments (up), change vs AI 0 (up) |
 | target | lands on the number | distance to target (small), monotonic, no song left out |
 
 Scores per control, each 0-100, combined into a grade A-F:
@@ -173,7 +173,7 @@ effect at 0. 80% or more means the feel still rules.
 
 ## 5. Pictures
 
-For every control: 4 bars of Hard (target 8, konami, seed 1) of *Stepgen Demo*, a track synthesized by `demo_track.py` so it can ship with the repo (the test songs are copyrighted and stay out of it), at 25, 50
+For every control: 4 bars of Hard (target 8, konami, seed 1) of *BeatSmith Demo*, a track synthesized by `demo_track.py` so it can ship with the repo (the test songs are copyrighted and stay out of it), at 25, 50
 and 75%, side by side, the same 4 bars each time (a loud returning
 chorus, found automatically), arrows coloured by note length like
 StepMania (beat red, half-beat blue, quarter-beat yellow), freezes as
@@ -194,7 +194,7 @@ follow and AI at 0/50/100. PNGs, in `docs/img/`.
 ## 7. Find preset (reverse import)
 
 Take a `.sm` you like plus its song, and find the dial settings that make
-stepgen chart it the most like that:
+BeatSmith chart it the most like that:
 
 1. Read the chart (`.sm`, `.ssc` or `.dwi`) and
    measure its fingerprint (section 2) against the song's analysis.
@@ -208,7 +208,7 @@ stepgen chart it the most like that:
 4. Save it as a profile (`profiles/<name>.toml`, with the sliders baked
    into settings as the app's "Save settings as profile" does) and the
    slider positions as app settings, plus a short report: how close each
-   measurement got and what stepgen can't copy (for example 12th notes,
+   measurement got and what BeatSmith can't copy (for example 12th notes,
    mines or BPM changes).
 
 Several charts can be imported together (for example all of a pack's

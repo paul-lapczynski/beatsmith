@@ -273,7 +273,7 @@ def read_dwi(path: Path) -> Song:
 
 def _song(path: Path, head: dict[str, str], charts: list[Chart], text: str) -> Song:
     folder = path.parent
-    stepgen = "stepgen" in text.lower() or any(p.name.lower().endswith(".stepgen.json") for p in folder.iterdir())
+    stepgen = "stepgen" in text.lower() or "beatsmith" in text.lower() or any(p.name.lower().endswith(".stepgen.json") for p in folder.iterdir())
     return Song(path, head.get("TITLE", "").strip() or folder.name, head.get("ARTIST", "").strip(),
                 _find_audio(folder, head.get("MUSIC", "")), charts, stepgen)
 
