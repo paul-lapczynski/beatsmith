@@ -38,7 +38,8 @@ from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QIcon
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog,
     QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QSlider, QSpinBox,
+    QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QSlider,
+    QSpinBox,
     QSplitter, QTabWidget, QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget,
 )
 
@@ -169,7 +170,15 @@ class Window(QMainWindow):
 
         root = QSplitter(Qt.Horizontal)
         root.addWidget(self._queue_panel())
-        root.addWidget(self._settings_panel())
+        # the settings scroll when the window is shorter than they are
+        settings = QScrollArea()
+        settings.setWidget(self._settings_panel())
+        settings.setWidgetResizable(True)
+        settings.setFrameShape(QScrollArea.NoFrame)
+        settings.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        settings.setMinimumWidth(settings.widget().minimumSizeHint().width()
+                                 + settings.verticalScrollBar().sizeHint().width())
+        root.addWidget(settings)
         root.setStretchFactor(0, 3)
         root.setStretchFactor(1, 2)
         from chart_editor import EditorWidget
