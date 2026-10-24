@@ -1983,7 +1983,7 @@ def write_sm(path: Path, title: str, artist: str, music: str, a: Analysis,
 
 
 def write_stats(path: Path, sm: Path, a: Analysis, repeats, seed: int,
-                sections=(), follows=None, ais=None) -> None:
+                sections=(), follows=None, ais=None, made_with=None) -> None:
     """Markdown snapshot next to the .sm: song analysis, repeated sections,
     per-chart stats, groove radar and density graphs (via chartstats)."""
     import chartstats
@@ -2016,8 +2016,35 @@ def write_stats(path: Path, sm: Path, a: Analysis, repeats, seed: int,
             intro.append(f"| {i + 1} | {sec['letter']} {sec['label']} | {sec['start'] + 1}-{sec['end']} | "
                          f"{sec['intensity']:.2f} | {voc} | "
                          + " | ".join(f"{follows[d][i]:.2f}" for d in diffs) + " |")
+    if made_with:
+        intro += made_with_md(made_with)
     path.write_text(chartstats.report(sm, a.duration, intro, [v / top for v in loud]),
                     encoding="utf-8")
+
+
+def made_with_md(made_with: dict) -> list[str]:
+    """The stats file's "Made with" section: what the meter targets changed."""
+    out = ["", "## Made with", ""]
+    order = sorted(made_with, key=SM_DIFFICULTIES.index)
+    for d in order:
+        r = made_with[d]
+        if r.get("cut_from"):
+            out.append(f"- **{d}**: cut from the {r['cut_from']} chart, with its own settings")
+        elif not r["changed"]:
+            out.append(f"- **{d}**: made with the settings as asked")
+        else:
+            out.append(f"- **{d}**: the meter target changed {len(r['changed'])} settings"
+                       + (f"; {r['breathing']}" if r.get("breathing") else ""))
+    keys = sorted({k for d in order for k in made_with[d]["changed"]})
+    if keys:
+        fmt = lambda v: f"{v:.3g}" if isinstance(v, (int, float)) else str(v)
+        out += ["", "Settings as asked → as used (blank: unchanged):", "",
+                "| Setting | " + " | ".join(order) + " |", "|---|" + "---|" * len(order)]
+        for k in keys:
+            cells = [(lambda c: f"{fmt(c[0])} → {fmt(c[1])}" if c else "")(made_with[d]["changed"].get(k))
+                     for d in order]
+            out.append(f"| `{k}` | " + " | ".join(cells) + " |")
+    return out
 
 
 def write_clicks(path: Path, src: Path, charts) -> None:
@@ -2163,6 +2190,29 @@ def clear_jump_neighbors(notes: list[Note]) -> list[Note]:
                 if nb is not None and len(nb.panels) == 1 and not nb.hold_rows:
                     drop.add(id(nb))
     return [n for n in notes if id(n) not in drop]
+
+
+def made_record(asked: DiffSpec, used: DiffSpec) -> dict:
+    """What a chart was really made with: every setting as used, and the ones
+    the meter target changed from what was asked (asked, used). Breathing
+    room is called out on its own, since easing it is a choice, not a dial."""
+    used_v = {f.name: getattr(used, f.name) for f in dataclasses.fields(used) if f.name != "name"}
+    changed = {k: [getattr(asked, k), v] for k, v in used_v.items()
+               if not (isinstance(v, float) and math.isclose(v, getattr(asked, k), abs_tol=1e-6))
+               and v != getattr(asked, k)}
+    rec = {"used": used_v, "changed": changed}
+    if any(k in changed for k in ("run_breaks", "recovery")):
+        bits = [f"{label} {getattr(asked, k):.2f} → {getattr(used, k):.2f}"
+                for k, label in (("run_breaks", "run breaks"), ("recovery", "recovery"))
+                if getattr(asked, k) > 0]
+        rec["breathing"] = (f"breathing room eased to {round(100 * breathing_share(asked, used))}% "
+                            f"({', '.join(bits)}) to get to meter {asked.target_meter:g}")
+    return rec
+
+
+def breathing_share(asked: DiffSpec, used: DiffSpec) -> float:
+    k = "run_breaks" if asked.run_breaks > 0 else "recovery"
+    return getattr(used, k) / getattr(asked, k) if getattr(asked, k) > 0 else 1.0
 
 
 def aim_for_meter(a: Analysis, spec: DiffSpec, repeats, rng: random.Random, ease: bool = True):
@@ -2477,6 +2527,7 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
         import verses
         sections = verses.relabel(a, sections, words, all_words)
     charts, follows, beat_only, ais = [], {}, [], {}
+    made_with: dict[str, dict] = {}    # what each chart was really made with (made_record)
     no_ai = []                         # the same charts without AI assist, to compare (temporary)
     specs = list(specs or load_patterns())
     audio = None                       # the song for the AI model, loaded once if a chart uses it
@@ -2497,6 +2548,7 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
             rng_at = rng.getstate()
             notes = back_off(a, charts[0][1], spec, rng)
             charts.append((spec, notes, meter_for(notes, a, spec)))
+            made_with[spec.name] = made_record(spec, spec) | {"cut_from": charts[0][0].name}
             if audio is not None:
                 same = random.Random()
                 same.setstate(rng_at)
@@ -2543,6 +2595,7 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
             _, made, notes, state = best
         spec = made
         charts.append((spec, notes, meter_for(notes, a, spec)))
+        made_with[spec.name] = made_record(asked, made)
         if audio is not None:
             if spec.name in ais:
                 # the same chart without AI assist: same settings, same dice
@@ -2595,7 +2648,7 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
         print(f"  -> {song0 / f'{t0}.sm'}")
     if clicks:
         write_clicks(folder / f"{title}.clicks.wav", song / music, charts)
-    write_stats(folder / f"{title}.stats.md", sm, a, repeats, seed, sections, follows, ais)
+    write_stats(folder / f"{title}.stats.md", sm, a, repeats, seed, sections, follows, ais, made_with)
     # how this chart was made, so llm_review.py can suggest an exact re-run
     ai_info = {"ai_assist": ais, "ai_model": ai_assist.MODEL.stem} if ais else {}
     (folder / f"{title}.stepgen.json").write_text(json.dumps({
@@ -2609,7 +2662,7 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
         "sections": [{k: sec[k] for k in ("start", "end", "letter", "label", "intensity", "vocals", "lyrics")
                       if k in sec}
                      | {"follow": {d: f[i] for d, f in follows.items()}} for i, sec in enumerate(sections)]}
-        | ai_info, indent=2))
+        | ai_info | {"made_with": made_with}, indent=2))
 
     span = a.music_end - a.music_start
     print(f"{title}: {a.bpm:g} BPM, offset {-a.t0:.3f}s, beat confidence {a.beat_confidence:.2f}"

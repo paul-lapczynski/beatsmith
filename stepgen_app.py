@@ -599,7 +599,9 @@ class Window(QMainWindow):
         v = QVBoxLayout(w)
         v.addWidget(QLabel("Every setting, after the profile and the Easy sliders. Edit a "
                            "cell to set it exactly (shown in bold). What each one does is in "
-                           "its tooltip."))
+                           "its tooltip. For a song that's been made, the \"made\" columns show "
+                           "what each chart was really made with; a difficulty target changes "
+                           "some settings to reach its number (highlighted)."))
         self.adv = QTableWidget(0, len(DIFFS))
         self.adv.setHorizontalHeaderLabels(list(DIFFS))
         self.adv.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -676,9 +678,11 @@ class Window(QMainWindow):
         specs = [s for s in self.effective_specs() if s.name in DIFFS]
         skip = {"name", "meter_min", "meter_max"}
         names = [f.name for f in fields(stepgen.DiffSpec) if f.name not in skip]
+        made = self._made_with()
+        made_diffs = [d for d in DIFFS if d in made]
         self.adv.blockSignals(True)
-        self.adv.setColumnCount(len(specs))
-        self.adv.setHorizontalHeaderLabels([s.name for s in specs])
+        self.adv.setColumnCount(len(specs) + len(made_diffs))
+        self.adv.setHorizontalHeaderLabels([s.name for s in specs] + [f"{d} (made)" for d in made_diffs])
         self.adv.setRowCount(len(names))
         self.adv.setVerticalHeaderLabels(names)
         bold = QFont()
@@ -692,10 +696,43 @@ class Window(QMainWindow):
                 if f"{s.name}.{n}" in self.overrides:
                     it.setFont(bold)
                 self.adv.setItem(r, c, it)
+            for c, d in enumerate(made_diffs, start=len(specs)):
+                rec = made[d]
+                v = rec.get("used", {}).get(n)
+                it = QTableWidgetItem("" if v is None else f"{v:.3g}" if isinstance(v, float) else str(v))
+                it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+                it.setForeground(QColor("#222222"))
+                if n in rec.get("changed", {}):
+                    asked, used = rec["changed"][n]
+                    it.setBackground(QColor("#fdebd0"))
+                    it.setFont(bold)
+                    it.setToolTip(f"Asked for {asked:.3g}, made with {used:.3g}: the {d} difficulty target "
+                                  f"changed it to reach its number." + (f"\n{rec['breathing']}" if
+                                                                       n in ("run_breaks", "recovery") and rec.get("breathing") else ""))
+                else:
+                    it.setBackground(QColor("#f2f2f2"))
+                    it.setToolTip(f"{d} was made with this" + (f" (cut from the {rec['cut_from']} chart)"
+                                                                if rec.get("cut_from") else ""))
+                self.adv.setItem(r, c, it)
         self.adv.blockSignals(False)
+
+    def _made_with(self) -> dict:
+        """What the selected song's charts were really made with (its
+        .stepgen.json), or {} for a song that isn't made yet."""
+        jobs = self.selected_jobs() if hasattr(self, "table") else []
+        sm = jobs[0].sm if jobs else None
+        if not sm:
+            return {}
+        try:
+            info = json.loads(side(sm, ".stepgen.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return info.get("made_with") or {}
 
     def _adv_edited(self, it: QTableWidgetItem):
         key = it.data(Qt.UserRole)
+        if not key:
+            return                                    # a "made" column: read-only
         try:
             self.overrides[key] = float(it.text())
         except ValueError:
@@ -1156,6 +1193,7 @@ class Window(QMainWindow):
         jobs = self.selected_jobs()
         job = jobs[0] if jobs else None
         self._scope()
+        self.refresh_advanced()                      # its "made" columns
         self.log_view.setPlainText(job.log if job else "")
         self.open_btn.setEnabled(bool(job and job.sm))
         self.edit_btn.setEnabled(bool(job and job.sm and job.sm.is_file()))
@@ -1417,6 +1455,12 @@ def used_settings(sm: Path) -> str:
         lines.append(f"- Shortened toward {int(d['shorten']['target'])} s: {d['shorten']['summary']}")
     if other:
         lines.append("- Exact settings: " + ", ".join(other))
+    for k, r in (d.get("made_with") or {}).items():
+        if r.get("breathing"):
+            lines.append(f"- **{k}: {r['breathing']}**")
+        elif r.get("changed") and not r.get("cut_from"):
+            lines.append(f"- {k}: the difficulty target changed {len(r['changed'])} settings "
+                         "(Advanced tab, \"made\" columns)")
     return "\n".join(lines) + "\n\n"
 
 
