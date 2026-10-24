@@ -1,4 +1,4 @@
-<p align="center"><img src="branding/beatsmith-512.png" alt="BeatSmith logo" width="256"></p>
+<p align="center"><img src="branding/beatsmith-mark-512.png" alt="BeatSmith logo" width="200"></p>
 
 # BeatSmith
 
