@@ -1,0 +1,44 @@
+# Konami: arcade-style, modelled on DDR's Sandstorm (rhythm repeats, jump bursts at drops, jump freezes)
+base = "patterns.toml"
+
+[all]
+rhythm_repeat = 0.95
+jump_clusters = 0.9
+flow_runs = 0.8
+phrase_shape = 0.8
+rest_bars = 0.6
+hold_min = 1.0
+hold_max = 2.0
+hold_free_foot = 0
+side_to_side = 0.0
+quarter_beats = 0.0
+beat_backbone = 0.5
+crescendo = 0.8
+energy_follow = 0.9
+
+[Easy]
+density = 0.5
+arrow_repeat = 0.6
+jump = 0.3
+hold_rate = 0.2
+jump_holds = 0.2
+jacks = 0.3
+
+[Medium]
+density = 0.9
+arrow_repeat = 0.3
+jump = 0.4
+hold_rate = 0.18
+jump_holds = 0.5
+half_beats = 0.2
+jacks = 0.2
+
+[Hard]
+density = 1.15
+arrow_repeat = 0.15
+jump = 0.55
+hold_rate = 0.1
+jump_holds = 0.9
+quarter_beats = 0.2
+half_beats = 0.4
+jacks = 0.2

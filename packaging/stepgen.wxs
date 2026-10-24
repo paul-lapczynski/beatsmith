@@ -1,0 +1,40 @@
+<!-- WiX v5 source for the stepgen MSI. Built by build.bat; see BUILD.md. -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="stepgen" Manufacturer="stepgen" Version="$(Version)"
+           UpgradeCode="6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11" Scope="perMachine">
+    <SummaryInformation Description="stepgen: StepMania chart generator" />
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of stepgen is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="stepgen.ico" SourceFile="stepgen.ico" />
+    <Property Id="ARPPRODUCTICON" Value="stepgen.ico" />
+    <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
+    <WixVariable Id="WixUILicenseRtf" Value="license.rtf" />
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <!-- filled by files.wxs (harvest.py): the whole PyInstaller build, with
+           Python, the libraries and ffmpeg in it -->
+      <Directory Id="INSTALLFOLDER" Name="stepgen" />
+    </StandardDirectory>
+
+    <ComponentGroupRef Id="AppFiles" />
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut">
+        <Shortcut Id="StartMenuApp" Name="stepgen" Description="Make StepMania charts from songs"
+                  Target="[INSTALLFOLDER]stepgen.exe" WorkingDirectory="INSTALLFOLDER" Icon="stepgen.ico" />
+        <RegistryValue Root="HKLM" Key="Software\stepgen" Name="startmenu" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcut">
+        <Shortcut Id="DesktopApp" Name="stepgen" Target="[INSTALLFOLDER]stepgen.exe"
+                  WorkingDirectory="INSTALLFOLDER" Icon="stepgen.ico" />
+        <RegistryValue Root="HKLM" Key="Software\stepgen" Name="desktop" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+  </Package>
+</Wix>

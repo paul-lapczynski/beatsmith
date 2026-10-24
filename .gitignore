@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.venv-*/
+venv/
+
+# Songs and audio (copyrighted, large)
+*.mp3
+*.ogg
+*.wav
+*.flac
+*.wma
+*.m4a
+songs/
+generated/
+examples/
+AppDist/
+_AppDist/
+shorten-tests*/
+
+# Commercial charts used for calibration
+calibration/
+
+# Training data, checkpoints and backups
+training/ai-data/
+training/runs/
+training/backup-pre-ai/
+*.pt
+
+# Build output and bundled binaries
+packaging/build/
+packaging/dist/
+packaging/ffmpeg/
+packaging/files.wxs
+*.zip
+*.msi
+*.exe
+
+# Logs and editor/OS clutter
+*.log
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Model training pipeline (kept local)
+training/

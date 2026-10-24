@@ -1,0 +1,25 @@
+# Power: big jumps on the hits, more jacks, louder parts hit much harder
+base = "patterns.toml"
+
+[all]
+energy_follow = 0.9
+jacks = 0.7
+
+[Medium]
+jump = 0.5
+
+[Hard]
+jump = 0.75
+jack_max = 5
+
+# an extra Challenge chart: Hard turned up
+[Challenge]
+extends = "Hard"
+density = 1.9
+max_nps = 7.0
+jump = 0.8
+half_beats = 1.0
+quarter_beats = 0.8
+flow_spice = 0.6
+meter_min = 9
+meter_max = 13

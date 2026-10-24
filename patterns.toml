@@ -1,0 +1,233 @@
+# stepgen pattern settings, one table per difficulty.
+# Sliders run 0..1 (0 = off / avoid, 1 = lots / lenient).
+# Override one value from the command line:  --set Hard.jump=0.8
+#
+# density          average notes per beat (Wrong Note by hand: 1.47)
+# max_nps          hard cap in notes per second
+# grid             main note grid: 1 = beat notes, 2 = half-beats, 4 = quarter-beats
+# min_gap          shortest gap between main notes, in beats
+#
+# jump             how lenient with jumps (two arrows at once, e.g. [1001]).
+#                  Sets how many there are, how close together they may be,
+#                  and how long a run of back-to-back jumps can get when the
+#                  music keeps hitting hard. Alternating [1001][0110] runs
+#                  are always discouraged, less so as this goes up.
+# jacks            how readily one arrow repeats ([1000][1000]...) when the
+#                  music repeats the same hit. Only on beat notes: quick
+#                  notes always go foot to foot onto different arrows
+#                  ([1000][0100][1000]), and half-beat jacks are rare
+# jack_max         most repeats of one arrow in a row. A ceiling, not a
+#                  target; past 3 in a row each extra repeat is ~7x less likely
+# flow             preference for rolling patterns: walk-downs
+#                  [1000][0100][0010][0001], and "two then another" like
+#                  L D L R L U, over random arrow choice
+# side_to_side     penalty on stepping straight Left <-> Right (and Down <-> Up).
+#                  Crossovers under holds are always prevented, whatever this is
+# energy_follow    how much note density follows the song's loudness:
+#                  0 = even all the way through, 1 = loud parts get far
+#                  more notes than quiet ones (Wrong Note by hand: strong)
+# Note lengths: a beat note lands on the beat (StepMania 4th, red), a
+# half-beat note halfway between (8th, blue), a quarter-beat note a quarter
+# of the way (16th, yellow).
+#
+# half_beats       how keen it is on half-beat notes (Medium/Hard): higher
+#                  means more of them and longer half-beat runs where the
+#                  music has the hits for it (old name: eighths)
+# quarter_beats    how many quarter-beat notes get sneaked in where the melody,
+#                  vocal or drums start a note there, e.g. a syncopated
+#                  1, 1.25, 1.75, 2 (Wrong Note by hand: 11 of them)
+# flow_spice       how often a quick 2 or 3 note burst (one step finer than
+#                  grid: half-beats on Easy, quarter-beats on Medium/Hard)
+#                  is added where the drums have one
+#
+# hold_rate        share of notes that may become holds
+# hold_min         shortest hold, in beats
+# hold_max         longest hold, in beats
+# sixteenths       how many 16th-note steps a chart may have, scaled to its
+#                  difficulty like Konami's (none up to 5, about 6% at 7,
+#                  11% at 8, 16% at 9, 20% at 10): 0 = none, 1 = typical,
+#                  2 = double. Holds even when aiming at a difficulty
+# run_breaks       a short pause (about a beat) inside long runs, every few
+#                  steps: 0 = off (nonstop runs), 0.5 = like Konami (most
+#                  runs 5-8 steps, longer in the big parts), 1 = often.
+#                  The spot varies a little so it doesn't feel mechanical
+# recovery         rest after a long or hard run, up to about 3 beats at 1.
+#                  A freeze with nothing tapped under it counts as the rest
+# stomps           chance a pause that falls on a row of big beats becomes
+#                  2-4 quarter-note jumps instead, [1001][1001] (needs jump)
+#                  The Breathing room slider moves all three
+# rhythm_lock      where the music carries on alike, a bar takes the rhythm
+#                  of the bar before (or two before) so your body learns it:
+#                  0 never, 1 whenever the music has hits there
+# groove_tries     make this many versions of each chart and keep the one
+#                  the groove meter (groove.py) scores best, at the same
+#                  difficulty. 1 = just one. Slower: each try is a full chart
+#                  The Groove slider (on top of the others) moves these and
+#                  rhythm_repeat, beat_backbone, flow, jacks, energy_follow,
+#                  phrase_shape and the breathing room settings
+# hold_free_foot   fastest the free foot may tap while the other holds,
+#                  in beats between taps (0 = no taps during holds). Never
+#                  faster than 8ths, and never under 0.3 s apart, so at
+#                  high BPM the free foot slows to quarters
+# hold_complexity  how much the free foot moves during a hold: 0 = it keeps
+#                  tapping one arrow, 0.5 = moves now and then, 1 = free
+#
+# rhythm_repeat    when a section of the song comes back (a chorus, a verse
+#                  over the same beat), chance it reuses the rhythm of the
+#                  steps from the first time (old name: repeat)
+# arrow_repeat     share of the arrows reused too. Konami's Sandstorm reuses
+#                  the rhythm almost always but the arrows rarely, so the
+#                  part feels the same while your feet keep moving
+# intensity_variation  extra variation when the repeat is more intense than
+#                  the first time: fewer arrows copied, some Left/Right
+#                  mirrored, and some of its own extra notes kept
+#
+# Shaping (all 0..1):
+# jump_clusters    gather jumps at the start of sections and drops, in short
+#                  back-to-back runs, instead of spreading them evenly
+# jump_holds       chance a jump on beat 1 or 3 over a sustained sound
+#                  becomes a two-foot freeze [2002]
+# flow_runs        keep running streams unbroken: fewer jacks and jumps in
+#                  the middle of a run (they move to section edges)
+# phrase_shape     density shape inside each 4-bar phrase: bars 2-3 a bit
+#                  lighter, bar 4 busier as a fill into the next phrase
+# rest_bars        in long full-intensity stretches, a lighter 2-4 bar
+#                  breather about every 24 bars
+# beat_backbone    fill the beat notes first and add half-beats on top, so
+#                  the chart keeps a steady 1-2-3-4 groove even when the
+#                  off-beat bass is louder (trance, house). Konami's charts
+#                  sit high on this
+# crescendo        through a build-up the steps climb with the music (light
+#                  at its start, busiest just before the top), a jump lands
+#                  on the climax hit, and the final big hit before the song
+#                  falls away gets a jump too. With energy_follow, the steps
+#                  ease off again when the music does
+# melody_follow    how much the arrows follow the tune instead of the drums
+#                  (0 = off). stepgen finds the song's sections; choruses
+#                  get the full amount, verses and bridges 60%, intros,
+#                  outros and builds 30%. While following, notes land on
+#                  the tune's rhythm and the arrows climb right as it rises
+#                  and left as it falls. Best with --stems (vocals
+#                  separated); --follow chorus=1 sets a section exactly
+# ai_assist        0 = stepgen's own onset/melody detection decides which
+#                  moments get a step, 1 = the AI model trained on
+#                  hand-made charts decides; in between blends the two.
+#                  Needs models/step_placement_v1.onnx. Same as --ai 1 for
+#                  every difficulty on the command line
+#
+# Difficulty:
+# target_meter     aim this chart at a difficulty number (1-10, Konami's
+#                  scale), e.g. 9. stepgen rates each try and turns density,
+#                  jumps, holds and faster notes up or down together until
+#                  it lands there; the settings above still decide how it
+#                  feels. 0 = off: use the settings as written. Same as
+#                  --target Hard=9 on the command line
+#
+# The number StepMania shows is always stepgen's own rating of the chart,
+# fitted on 909 official Konami charts (within one of Konami's number 70%
+# of the time). meter_min/max are no longer used and are ignored.
+
+[Easy]
+run_breaks = 0.5
+recovery = 0.5
+stomps = 0.0
+density = 0.7
+max_nps = 2.2
+grid = 1
+min_gap = 1.0
+jump = 0.05
+jacks = 0.3
+jack_max = 2
+flow = 0.5
+side_to_side = 0.3
+energy_follow = 0.5
+half_beats = 0.0
+quarter_beats = 0.0
+flow_spice = 0.0
+hold_rate = 0.06
+hold_min = 2.0
+hold_max = 4.0
+hold_free_foot = 0
+hold_complexity = 0.0
+rhythm_repeat = 0.9
+arrow_repeat = 0.6
+intensity_variation = 0.3
+jump_clusters = 0.0
+jump_holds = 0.0
+flow_runs = 0.3
+phrase_shape = 0.3
+rest_bars = 0.3
+beat_backbone = 0.0
+crescendo = 0.3
+meter_min = 1
+meter_max = 4
+
+[Medium]
+run_breaks = 0.5
+recovery = 0.5
+stomps = 0.2
+density = 1.1
+max_nps = 3.6
+grid = 2
+min_gap = 0.5
+jump = 0.25
+jacks = 0.4
+jack_max = 3
+flow = 0.7
+side_to_side = 0.1
+energy_follow = 0.6
+half_beats = 0.3
+quarter_beats = 0.15
+flow_spice = 0.15
+hold_rate = 0.05
+hold_min = 2.0
+hold_max = 4.0
+hold_free_foot = 2.0
+hold_complexity = 0.3
+rhythm_repeat = 0.9
+arrow_repeat = 0.4
+intensity_variation = 0.5
+jump_clusters = 0.4
+jump_holds = 0.2
+flow_runs = 0.5
+phrase_shape = 0.5
+rest_bars = 0.4
+beat_backbone = 0.0
+crescendo = 0.5
+meter_min = 4
+meter_max = 7
+
+[Hard]
+run_breaks = 0.5
+recovery = 0.5
+stomps = 0.3
+density = 1.5
+max_nps = 5.5
+grid = 2
+min_gap = 0.5
+jump = 0.45
+jacks = 0.5
+jack_max = 4
+flow = 0.8
+side_to_side = 0.0
+energy_follow = 0.7
+half_beats = 0.7
+quarter_beats = 0.5
+flow_spice = 0.35
+hold_rate = 0.05
+hold_min = 2.0
+hold_max = 4.0
+hold_free_foot = 1.0
+hold_complexity = 0.6
+rhythm_repeat = 0.9
+arrow_repeat = 0.3
+intensity_variation = 0.6
+jump_clusters = 0.6
+jump_holds = 0.3
+flow_runs = 0.6
+phrase_shape = 0.6
+rest_bars = 0.5
+beat_backbone = 0.0
+crescendo = 0.6
+meter_min = 7
+meter_max = 10

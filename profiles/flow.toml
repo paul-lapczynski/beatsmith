@@ -1,0 +1,19 @@
+# Flow: rolling footwork and half-beat runs, few jumps, gentle holds
+base = "patterns.toml"
+
+[all]
+flow = 0.95
+jump = 0.1
+jacks = 0.25
+side_to_side = 0.2
+
+[Medium]
+half_beats = 0.6
+
+[Hard]
+half_beats = 0.9
+quarter_beats = 0.6
+hold_complexity = 0.4
+
+[Easy]
+jump = 0.05

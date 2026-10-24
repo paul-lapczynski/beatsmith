@@ -1,0 +1,19 @@
+# Chill: lighter charts for warming up or long sessions
+base = "patterns.toml"
+
+[all]
+jump = 0.05
+side_to_side = 0.5
+hold_free_foot = 0
+
+[Easy]
+density = 0.5
+
+[Medium]
+density = 0.85
+quarter_beats = 0.0
+
+[Hard]
+density = 1.2
+quarter_beats = 0.2
+flow_spice = 0.1
