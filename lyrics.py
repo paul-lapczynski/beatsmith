@@ -15,6 +15,8 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))   # the add-ons' embedded Python leaves the script's folder off sys.path
+
 MODEL_REPO = "Systran/faster-whisper-small"
 MODEL_URL = f"https://huggingface.co/{MODEL_REPO}"
 
