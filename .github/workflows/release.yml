@@ -31,7 +31,8 @@ jobs:
       - name: Pick the version
         shell: bash
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF_NAME#v}"; else v="0.0.${GITHUB_RUN_NUMBER}"; fi
+          # a tag sets it (v0.0.2 -> 0.0.2); test builds use build.bat's default
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF_NAME#v}"; else v="0.0.1"; fi
           echo "STEPGEN_VERSION=$v" >> "$GITHUB_ENV"
 
       - name: Build

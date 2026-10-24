@@ -8,9 +8,9 @@ you to allow them). Then it makes a private Python environment in
 `packaging\.venv`, fetches ffmpeg, bundles everything with PyInstaller and
 builds:
 
-- `packaging\dist\stepgen-1.0.0.msi`: the installer to share
+- `packaging\dist\stepgen-0.0.1.msi`: the installer to share
 - `packaging\dist\stepgen\stepgen.exe`: the app, runnable without installing
-- `packaging\dist\stepgen-setup-1.0.0.exe`: an .exe installer as well, only
+- `packaging\dist\stepgen-setup-0.0.1.exe`: an .exe installer as well, only
   if Inno Setup 6 happens to be installed
 
 **People who install the MSI need nothing else.** Python, librosa, Qt and
@@ -18,8 +18,9 @@ ffmpeg are all inside it. It installs to Program Files with a Start menu and
 desktop shortcut, shows up in Apps & features for uninstalling, and
 installing a newer version replaces the old one.
 
-Set `STEPGEN_VERSION=1.1.0` before running the build to change the version
-number (an MSI only upgrades when the number goes up).
+Set `STEPGEN_VERSION=0.0.2` before running the build to change the version
+number (an MSI only upgrades when the number goes up). It defaults to 0.0.1;
+releases from GitHub take the number from the tag (`v0.0.2` makes 0.0.2).
 
 The installer isn't code-signed, so Windows SmartScreen shows "unknown
 publisher" the first time. Click "More info", then "Run anyway".
