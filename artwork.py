@@ -36,6 +36,7 @@ BACKGROUND = (640, 480)
 JACKET = (512, 512)
 NEXT_TO_SONG = ("cover", "folder", "front", "album", "albumart")
 IMAGE_EXT = (".jpg", ".jpeg", ".png")
+VARIOUS_ARTISTS = "89ad4ac3-39f7-470e-963a-56509c546377"     # MusicBrainz's "Various Artists"
 MIN_SIZE = 200          # smaller than this looks like mush on a 640x480 background
 
 def app_version() -> str:
@@ -282,8 +283,13 @@ def _title_is(found: str, wanted: str, exact: bool = False) -> bool:
 _searched: dict[str, bytes | None] = {}     # MusicBrainz answers during one online(), asked once
 
 
-def musicbrainz(title: str, artist: str, log, loose: bool = False) -> tuple[bytes, str, str | None] | None:
-    """loose: when no title matches, the artist's best match (a song listed
+def musicbrainz(title: str, artist: str, log, loose: bool = False,
+                any_release: bool = False) -> tuple[bytes, str, str | None] | None:
+    """Only the artist's own albums, singles and EPs, unless any_release (or
+    loose): then live records, compilations and other artists' releases too.
+    A karaoke game's cover for "One Week" says nothing about the song, so
+    those wait until the album tag has had its turn.
+    loose: when no title matches, the artist's best match (a song listed
     under another language's title, say), flagged to check."""
     q = f"recording:({_lucene(title)})" + (f" AND artist:({_lucene(artist)})" if artist else "")
     url = f"{MUSICBRAINZ}?{urllib.parse.urlencode({'query': q, 'fmt': 'json', 'limit': 15})}"
@@ -311,7 +317,11 @@ def musicbrainz(title: str, artist: str, log, loose: bool = False) -> tuple[byte
             rg = rel.get("release-group", {})
             # the artist's own albums and singles before compilations and live records
             plain = rel.get("status") == "Official" and not rg.get("secondary-types")
-            rank = (not plain, rg.get("primary-type") not in ("Album", "Single", "EP"))
+            various = any(c.get("artist", {}).get("id") == VARIOUS_ARTISTS or c.get("name") == "Various Artists"
+                          for c in rel.get("artist-credit", []))
+            rank = (various, not plain, rg.get("primary-type") not in ("Album", "Single", "EP"))
+            if artist and any(rank) and not (any_release or loose):
+                continue
             what = f"{credit} - {rec.get('title', '')}"
             if rg.get("id"):
                 groups.append((rank, rg["id"], what))
@@ -325,8 +335,8 @@ def musicbrainz(title: str, artist: str, log, loose: bool = False) -> tuple[byte
         for rel in rec["releases"]:
             what = f"{credit} - {rec.get('title', '')}"
             if rel.get("release-group", {}).get("id"):
-                groups.append(((False, False), rel["release-group"]["id"], what))
-            releases.append(((False, False), rel["id"], what))
+                groups.append(((False, False, False), rel["release-group"]["id"], what))
+            releases.append(((False, False, False), rel["id"], what))
     for kind, ids in (("release-group", groups), ("release", releases)):
         seen = []
         for _, i, what in sorted(ids, key=lambda x: x[0]):
@@ -445,23 +455,25 @@ def online(title: str, artist: str, log=print, album: str = "") -> tuple[bytes, 
     for a in artists if album else []:                   # its album
         steps += [(f"the album {a} - {album}", MB, musicbrainz_album, (album, a)),
                   ("", IT, itunes_album, (album, a)), ("", DZ, deezer_album, (album, a))]
+    for t, a in tries:                                   # the song's live records, compilations...
+        steps.append((f"any release of {a + ' - ' if a else ''}{t}", MB, musicbrainz, (t, a, "any_release")))
     for t, a in tries:                                   # another cover by the same artist
         if a:
-            steps.append((f"any cover by {a}", MB, musicbrainz, (t, a, None, True)))
+            steps.append((f"any cover by {a}", MB, musicbrainz, (t, a, "loose")))
     for a in artists:                                    # a photo of the artist
         steps.append((f"a photo of {a}", DZ, deezer_artist, (a,)))
     for what, name, fn, args in steps:
         if what:
             log(f"  artwork: looking for {what}")
-        if len(args) == 4:                               # the loose MusicBrainz search
-            found = fn(args[0], args[1], log, loose=True)
+        if len(args) == 3:                               # the wider MusicBrainz searches
+            found = fn(args[0], args[1], log, **{args[2]: True})
         else:
             found = fn(*args, log)
         if found and _size(found[0])[0] >= MIN_SIZE:
             where = {"from": name, "match": found[1]}
             if found[2]:
                 where["note"] = found[2]
-            elif args[-1] == "":
+            elif len(args) > 1 and args[1] == "":
                 where["note"] = "matched by title only: check it's the right song"
             return found[0], where
     log(f"  artwork: nothing found online for {title}")
