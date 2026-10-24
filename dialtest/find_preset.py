@@ -30,10 +30,9 @@ import harness
 import metrics
 from harness import FEEL, stepgen
 
-sys.path.insert(0, str(harness.STEPGEN_DIR / "training"))
 sys.path.insert(0, str(harness.STEPGEN_DIR))
 import chartstats  # noqa: E402
-import simfile  # noqa: E402
+import chartfile  # noqa: E402
 
 R = stepgen.ROWS_PER_BEAT
 CONTROLS = list(FEEL) + ["groove", "follow", "ai"]
@@ -76,7 +75,7 @@ def hold_lengths(path: Path) -> list[dict[float, dict[int, float]]]:
 
 
 def read_chart(path: Path):
-    song = simfile.read(path)
+    song = chartfile.read(path)
     holds = hold_lengths(path) if path.suffix.lower() in (".sm", ".ssc") else [{} for _ in song.charts]
     return song, holds
 
