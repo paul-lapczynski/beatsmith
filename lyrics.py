@@ -42,14 +42,27 @@ def load_16k(path: Path):
 
 
 def transcribe(vocals: Path, out: Path, model_dir: Path) -> None:
+    import accel
     from faster_whisper import WhisperModel
-    # CPU only: about a minute for a song, and it never touches the GPU
-    model = WhisperModel(str(model_dir), device="cpu", compute_type="int8")
-    segs, info = model.transcribe(load_16k(vocals), word_timestamps=True, vad_filter=True)
-    segs = list(segs)
+    # an NVIDIA GPU when there is one (accel.py), else the CPU: about a minute for a song
+    device, compute = accel.whisper_device()
+    audio = load_16k(vocals)
+    try:
+        segs, info = _read(WhisperModel, model_dir, device, compute, audio)
+    except Exception as e:                  # missing cuBLAS/cuDNN, out of memory: use the CPU
+        if device == "cpu":
+            raise
+        print(f"the GPU failed ({str(e).splitlines()[0][:120]}); reading the lyrics on the CPU", flush=True)
+        segs, info = _read(WhisperModel, model_dir, "cpu", "int8", audio)
     words = [[round(w.start, 3), round(w.end, 3), w.word.strip()]
              for s in segs for w in (s.words or []) if w.word.strip()]
     out.write_text(json.dumps({"model": MODEL_REPO, "language": info.language, "words": words}))
+
+
+def _read(WhisperModel, model_dir: Path, device: str, compute: str, audio):
+    model = WhisperModel(str(model_dir), device=device, compute_type=compute)
+    segs, info = model.transcribe(audio, word_timestamps=True, vad_filter=True)
+    return list(segs), info          # transcribe() is lazy: a GPU failure shows up here
 
 
 if __name__ == "__main__":

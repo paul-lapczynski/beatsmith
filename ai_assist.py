@@ -1,5 +1,6 @@
 """AI assist: the step-placement model trained on hand-made charts
-(training/train.py), run on CPU with onnxruntime. It scores every frame by
+(training/train.py), run with onnxruntime (on a GPU when accel.py finds one
+it can use, else the CPU). It scores every frame by
 how likely a chart maker would put a step there, at a given difficulty;
 stepgen blends that into step_env by the ai_assist setting.
 
@@ -41,7 +42,12 @@ def session():
     global _session
     if _session is None:
         import onnxruntime as ort
-        _session = ort.InferenceSession(str(MODEL), providers=["CPUExecutionProvider"])
+
+        import accel
+        try:
+            _session = ort.InferenceSession(str(MODEL), providers=accel.onnx_providers())
+        except Exception:                   # a GPU provider that won't start: the CPU always works
+            _session = ort.InferenceSession(str(MODEL), providers=["CPUExecutionProvider"])
     return _session
 
 

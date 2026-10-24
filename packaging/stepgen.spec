@@ -5,9 +5,10 @@ from PyInstaller.utils.hooks import collect_all
 root = SPECPATH + "/.."
 datas = [(root + "/patterns.toml", "."), (root + "/profiles", "profiles"),
          (root + "/README.md", "."), (SPECPATH + "/stepgen.png", "."),
-         (root + "/stems.py", "."), (root + "/lyrics.py", ".")]      # run by the optional add-ons' own Python
+         (root + "/stems.py", "."), (root + "/lyrics.py", "."),     # run by the optional add-ons' own Python
+         (root + "/accel.py", ".")]
 datas += [(root + "/models", "models")]                          # AI assist model
-binaries, hidden = [], ["stepgen", "chartstats", "llm_review", "chart_editor", "groove", "layout", "shorten", "verses", "addons", "ai_assist", "stems", "mutagen", "sounddevice"]
+binaries, hidden = [], ["stepgen", "chartstats", "llm_review", "chart_editor", "groove", "layout", "shorten", "verses", "addons", "ai_assist", "accel", "stems", "mutagen", "sounddevice"]
 for pkg in ("librosa", "soundfile", "lazy_loader", "audioread", "soxr", "sounddevice", "_sounddevice_data", "onnxruntime"):
     d, b, h = collect_all(pkg)
     datas += d

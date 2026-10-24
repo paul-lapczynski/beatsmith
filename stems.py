@@ -7,8 +7,9 @@ stepgen can follow the vocal or lead line instead of everything tonal.
 Optional: needs `pip install demucs soundfile` (pulls in PyTorch, about
 1 GB); the app can download all of it for you (Options > Vocal separation). The
 first run downloads the htdemucs model (~80 MB). Separation takes roughly
-one to three minutes per song on a normal CPU; the result is cached, so
-each song is only separated once.
+one to three minutes per song on a normal CPU, a few seconds on a GPU
+(NVIDIA, or Apple Silicon; see accel.py); the result is cached, so each
+song is only separated once.
 """
 from __future__ import annotations
 
@@ -71,14 +72,29 @@ def separate(audio: Path, out_dir: Path, log=print) -> Path:
     wav = torch.tensor(y[:2], dtype=torch.float32)
     ref = wav.mean(0)
     mean, std = ref.mean(), ref.std() + 1e-8
-    with torch.no_grad():
-        out = apply_model(model, ((wav - mean) / std)[None], device="cpu", split=True,
-                          overlap=0.25, progress=False)[0]
+    import accel
+    device = accel.torch_device()
+    log(f"progress: separating on {device}")
+    try:
+        out = _apply(apply_model, model, wav, mean, std, device)
+    except Exception as e:                  # out of GPU memory, a driver problem: the CPU always works
+        if device == "cpu":
+            raise
+        log(f"the GPU ({device}) failed ({str(e).splitlines()[0][:120]}); separating on the CPU")
+        out = _apply(apply_model, model, wav, mean, std, "cpu")
     out = out * std + mean
     for name, src in zip(model.sources, out):
         if name in STEMS:
             _write_ogg(out_dir / f"{name}.ogg", src.numpy().T.astype(np.float32), sr)
     return out_dir
+
+
+def _apply(apply_model, model, wav, mean, std, device: str):
+    import torch
+    with torch.no_grad():
+        out = apply_model(model, ((wav - mean) / std)[None], device=device, split=True,
+                          overlap=0.25, progress=False)[0]
+    return out.cpu()
 
 
 def main(argv=None) -> int:

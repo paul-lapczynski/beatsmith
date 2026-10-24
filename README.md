@@ -341,9 +341,27 @@ every source first (also `python addons.py sources stems` / `lyrics`):
 | htdemucs separation model (Meta) | https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th |
 | faster-whisper, CTranslate2, tokenizers, huggingface-hub, PyAV, ONNX Runtime (AI verse detection) | https://pypi.org (files from files.pythonhosted.org) |
 | Whisper "small" for faster-whisper (Systran) | https://huggingface.co/Systran/faster-whisper-small |
+| PyTorch and torchaudio for NVIDIA CUDA (GPU support, optional) | https://download.pytorch.org/whl/cu128 (or cu126, cu130 if that build isn't there) |
 
 Everything goes into `%LOCALAPPDATA%\stepgen\addons`; deleting that folder
 removes it all.
+
+### Hardware acceleration
+
+Options > **Hardware acceleration** picks where the heavy optional parts
+run: **Use the GPU when there is one** (the default) or **CPU only**. Only
+the neural networks can use a GPU; making the charts is always the CPU.
+
+| Part | NVIDIA GPU | Apple Silicon GPU |
+|---|---|---|
+| Vocal separation (Demucs) | yes, after **Download NVIDIA GPU support** (about 3 GB) | yes, nothing to download |
+| AI verse detection (Whisper) | yes, with the same download | no (CPU) |
+| AI assist | no (CPU; it's small and quick) | yes (Core ML) |
+
+The app says which GPU it found under the option. If the GPU fails (out
+of memory, an old driver), that step runs on the CPU instead, so a GPU never
+breaks a run. On the command line it's `--device auto|cpu`, and
+`python accel.py` prints what stepgen would use on this computer.
 
 ## Profiles (play styles)
 

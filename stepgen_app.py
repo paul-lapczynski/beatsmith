@@ -628,7 +628,7 @@ class Window(QMainWindow):
         of it comes from."""
         import addons
         name, size = addons.NAMES[kind], addons.SIZES[kind]
-        btn = self.stems_btn if kind == "stems" else self.lyrics_btn
+        btn = {"stems": self.stems_btn, "lyrics": self.lyrics_btn, "gpu": self.gpu_btn}[kind]
         rows = "".join(f"<li>{html.escape(what)}<br><code>{html.escape(url)}</code></li>"
                        for what, url in addons.sources(kind))
         box = QMessageBox(self)
@@ -655,9 +655,11 @@ class Window(QMainWindow):
             btn.setEnabled(True)
             btn.setText(f"Download {name.lower()} ({size})…")
             self._stems_ready()
+            self._gpu_state(check_install=True)
             if addons.installed(kind):
-                (self.stems_box if kind == "stems" else self.lyrics_box).setChecked(
-                    kind == "stems" or self.stems_box.isChecked())
+                if kind != "gpu":
+                    (self.stems_box if kind == "stems" else self.lyrics_box).setChecked(
+                        kind == "stems" or self.stems_box.isChecked())
                 self.statusBar().showMessage(f"{name} is ready.")
             else:
                 self.statusBar().showMessage(f"{name} download failed (code {code}); see the log.")
@@ -698,7 +700,49 @@ class Window(QMainWindow):
         f.addRow(self.keep_format)
         self.clicks = QCheckBox("Also write a click track (.clicks.wav) to check sync")
         f.addRow(self.clicks)
+        # hardware acceleration: only the neural-network parts can use a GPU (accel.py)
+        self.device = QComboBox()
+        self.device.addItem("Use the GPU when there is one", "auto")
+        self.device.addItem("CPU only", "cpu")
+        self.device.setToolTip("Vocal separation, AI verse detection and AI assist can run on an NVIDIA "
+                               "GPU or an Apple Silicon GPU, which is much faster. Making the charts "
+                               "themselves always runs on the CPU. If the GPU fails (out of memory, a "
+                               "driver problem), that step runs on the CPU instead.")
+        f.addRow("Hardware acceleration", self.device)
+        self.gpu_label = QLabel()
+        self.gpu_label.setWordWrap(True)
+        self.gpu_btn = QPushButton("Download NVIDIA GPU support (about 3 GB)…")
+        self.gpu_btn.clicked.connect(lambda: self.install_addon("gpu"))
+        f.addRow(self.gpu_label)
+        f.addRow(self.gpu_btn)
+        self.device.currentIndexChanged.connect(lambda _: self._gpu_state())
         return w
+
+    def _gpu_state(self, check_install: bool = False):
+        """Say what GPU there is and what uses it; offer the NVIDIA download
+        when that's what's missing."""
+        import accel
+        import addons
+        nvidia = accel.nvidia_gpu()
+        if check_install or not hasattr(self, "_gpu_ok"):
+            self._gpu_ok = bool(nvidia) and addons.installed("gpu")
+        stems_ok = addons.installed("stems")
+        self.gpu_btn.setVisible(bool(nvidia) and not self._gpu_ok and sys.platform != "darwin")
+        self.gpu_btn.setEnabled(stems_ok)
+        self.gpu_btn.setToolTip("" if stems_ok else "Download melody analysis first: GPU support speeds it up.")
+        if self.device.currentData() == "cpu":
+            text = "Everything runs on the CPU."
+        elif nvidia:
+            uses = (["vocal separation", "AI verse detection"] if self._gpu_ok else [])
+            text = (f"Found {nvidia}. " + (f"Used for {' and '.join(uses)}." if uses else
+                    "Vocal separation and AI verse detection need GPU support to use it (a "
+                    "one-time download, below)."))
+        elif accel.apple_silicon():
+            text = ("Found the Apple Silicon GPU: vocal separation and AI assist use it. AI verse "
+                    "detection runs on the CPU (Whisper has no Apple GPU support).")
+        else:
+            text = "No GPU found that stepgen can use; everything runs on the CPU."
+        self.gpu_label.setText(text)
 
     # ------------------------------------------------------------- settings
     def _setting_docs(self) -> dict[str, str]:
@@ -1086,6 +1130,8 @@ class Window(QMainWindow):
                                    and self.stems_box.isChecked())
         self.backoff.setChecked(st.value("backoff", "false") == "true")
         self.overrides = json.loads(st.value("overrides", "{}"))
+        self.device.setCurrentIndex(max(0, self.device.findData(st.value("device", "auto"))))
+        self._gpu_state(check_install=True)
 
     def closeEvent(self, ev):
         if not self.editor.confirm_discard():
@@ -1119,6 +1165,7 @@ class Window(QMainWindow):
         st.setValue("lyrics", "true" if self.lyrics_box.isChecked() else "false")
         st.setValue("backoff", "true" if self.backoff.isChecked() else "false")
         st.setValue("overrides", json.dumps(self.overrides))
+        st.setValue("device", self.device.currentData())
         super().closeEvent(ev)
 
     # ---------------------------------------------------------------- queue
@@ -1376,6 +1423,7 @@ class Window(QMainWindow):
             env.insert("PATH", str(ff) + os.pathsep + env.value("PATH"))
         env.insert("PYTHONUNBUFFERED", "1")
         env.insert("PYTHONIOENCODING", "utf-8")
+        env.insert("STEPGEN_DEVICE", self.device.currentData() or "auto")     # accel.py
         p.setProcessEnvironment(env)
         p.setProcessChannelMode(QProcess.MergedChannels)
         p.readyReadStandardOutput.connect(lambda j=job: self._output(j))
