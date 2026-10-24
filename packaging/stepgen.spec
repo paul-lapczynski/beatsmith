@@ -8,6 +8,11 @@ datas = [(root + "/patterns.toml", "."), (root + "/profiles", "profiles"),
          (root + "/stems.py", "."), (root + "/lyrics.py", "."),     # run by the optional add-ons' own Python
          (root + "/accel.py", ".")]
 datas += [(root + "/models", "models")]                          # AI assist model
+# the app's version, for what it tells web services about itself (artwork.py's User-Agent)
+import os
+with open(SPECPATH + "/version.txt", "w") as f:
+    f.write(os.environ.get("STEPGEN_VERSION", "0.0.1").lstrip("v"))
+datas += [(SPECPATH + "/version.txt", ".")]
 binaries, hidden = [], ["stepgen", "chartstats", "llm_review", "chart_editor", "groove", "layout", "shorten", "verses", "addons", "ai_assist", "accel", "artwork", "stems", "mutagen", "sounddevice"]
 for pkg in ("librosa", "soundfile", "lazy_loader", "audioread", "soxr", "sounddevice", "_sounddevice_data", "onnxruntime"):
     d, b, h = collect_all(pkg)

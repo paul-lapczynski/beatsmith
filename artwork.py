@@ -38,8 +38,26 @@ NEXT_TO_SONG = ("cover", "folder", "front", "album", "albumart")
 IMAGE_EXT = (".jpg", ".jpeg", ".png")
 MIN_SIZE = 200          # smaller than this looks like mush on a 640x480 background
 
+def app_version() -> str:
+    """The version built into the app (version.txt, written by the build),
+    else the newest release tag of a source checkout, else "dev"."""
+    here = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    try:
+        return (here / "version.txt").read_text().strip() or "dev"
+    except OSError:
+        pass
+    try:
+        import subprocess
+        tag = subprocess.run(["git", "describe", "--tags", "--abbrev=0"], cwd=here, capture_output=True,
+                             text=True, timeout=5,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout.strip()
+        return tag.lstrip("v") or "dev"
+    except (OSError, subprocess.SubprocessError):
+        return "dev"
+
+
 # MusicBrainz requires one naming the application, its version and a contact
-USER_AGENT = "BeatSmith/0.0.1 ( https://github.com/paul-lapczynski/beatsmith )"
+USER_AGENT = f"BeatSmith/{app_version()} ( https://github.com/paul-lapczynski/beatsmith )"
 MUSICBRAINZ = "https://musicbrainz.org/ws/2/recording/"
 COVER_ART_ARCHIVE = "https://coverartarchive.org"
 ITUNES = "https://itunes.apple.com/search"
