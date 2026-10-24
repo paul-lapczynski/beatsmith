@@ -11,6 +11,7 @@ Turns a song into a StepMania `.sm` file with Easy, Medium and Hard
 
 What every slider and setting does, with pictures of the arrows at 25%, 50% and 75%:
 [docs/DIALS.md](docs/DIALS.md).
+Try them live in your browser: [the dial preview](https://paul-lapczynski.github.io/beatsmith/preview.html).
 
 ## Quick start
 
