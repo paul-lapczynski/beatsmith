@@ -83,6 +83,15 @@ MP3, OGG, WAV and FLAC load directly; anything else goes through ffmpeg.
   their meters, settings and stats. Select one to open it in the editor,
   or to regenerate it with new settings (if its song file is still where
   it was). Untick it to hide them again.
+- **Export…** (above the queue, or File > Export songs) lists every song
+  made in the output folder with a tick box each and an All box. It copies
+  just what StepMania needs (the chart, the song, and the banner,
+  background and jacket) into a folder you pick, such as
+  `Songs\AATesting`, or into a zip with a folder per song, then offers to
+  open the folder. Folder and file names are always plain ASCII, so songs
+  made before that rule load too; a destination folder holding charts
+  stepgen didn't make is left alone. From the command line:
+  `python export.py <output folder> <destination folder or .zip> [title...]`.
 - Settings and the output folder are remembered.
 
 ### Edit tab (chart editor, early version)
