@@ -115,6 +115,38 @@ def clean_install() -> None:
     settings.sync()
 
 
+def out_dir_problem(d: Path) -> str:
+    """Why songs can't go in this output folder, or "" when they can."""
+    d = d.resolve()
+    if getattr(sys, "frozen", False):
+        app = Path(sys.executable).resolve().parent
+        if d == app or app in d.parents:
+            return ("That's the folder BeatSmith itself is installed in. The next update or "
+                    "uninstall would delete the songs in it.")
+    probe = d
+    while not probe.exists() and probe.parent != probe:
+        probe = probe.parent                 # the folder gets made later; check where it would go
+    # (not tempfile: on Windows it retries "access denied" for a very long time)
+    test = probe / f".beatsmith-write-test-{os.getpid()}"
+    try:
+        test.write_bytes(b"")
+        test.unlink()
+    except OSError:
+        return ("Windows doesn't let apps save into that folder without administrator rights "
+                "(Program Files is one of those).")
+    return ""
+
+
+def out_dir_warning(parent, d: Path) -> bool:
+    """Tell the user when the output folder won't work; True when it's fine."""
+    why = out_dir_problem(d)
+    if why:
+        QMessageBox.warning(parent, "BeatSmith", f"Songs can't be saved in {d}.\n\n{why}\n\n"
+                            "Pick a folder of your own instead, such as StepMania's Songs folder "
+                            "or a folder in Documents.")
+    return not why
+
+
 def user_profiles_dir() -> Path:
     d = Path(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)) / "profiles"
     d.mkdir(parents=True, exist_ok=True)
@@ -1023,7 +1055,7 @@ class Window(QMainWindow):
 
     def pick_out_dir(self):
         d = QFileDialog.getExistingDirectory(self, "Output folder", self.out_edit.text())
-        if d:
+        if d and out_dir_warning(self, Path(d)):
             self.out_edit.setText(d)
             self.refresh_made()
 
@@ -1708,7 +1740,7 @@ class Window(QMainWindow):
         if not text:
             QMessageBox.warning(self, "BeatSmith", "Pick an output folder first.")
             return None
-        return Path(text)
+        return Path(text) if out_dir_warning(self, Path(text)) else None
 
     def start(self):
         out = self.out_dir()
