@@ -15,7 +15,10 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))   # the add-ons' embedded Python leaves the script's folder off sys.path
+# the add-ons' embedded Python leaves the script's folder off sys.path; it goes
+# last, as in the installed app that folder also holds the app's own compiled
+# libraries (NumPy...), built for another Python, which must not shadow the add-ons'
+sys.path.append(str(Path(__file__).resolve().parent))
 
 MODEL_REPO = "Systran/faster-whisper-small"
 MODEL_URL = f"https://huggingface.co/{MODEL_REPO}"
