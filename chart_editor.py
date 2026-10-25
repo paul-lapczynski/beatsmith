@@ -35,7 +35,10 @@ from __future__ import annotations
 import math
 from collections import Counter
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -241,7 +244,8 @@ class Player:
         self.volume = 0.9
         self.click = self._make_click()
         self.stream = None
-        self.error = ""
+        self.error = ""              # why there's no sound output at all
+        self.load_error = ""         # why the current song couldn't be read
         self._clock0 = None
         self._last_cb = None         # (wall time, song frame) at the latest audio callback
         self._shown = 0.0            # last time handed out, so the clock never steps back
@@ -257,15 +261,23 @@ class Player:
 
     def load(self, path: Path | None) -> None:
         self.stop()
+        self.data, self.sr = np.zeros((1, 2), np.float32), 44100   # no leftover song if this one fails
         if path is None:
             return
+        import soundfile as sf
         try:
-            import soundfile as sf
             data, sr = sf.read(str(path), dtype="float32", always_2d=True)
         except Exception:
-            import librosa
-            y, sr = librosa.load(str(path), sr=44100, mono=False)
-            data = np.atleast_2d(y).T.astype(np.float32)
+            # some MP3s (odd tags) and m4a/wma stop libsndfile; ffmpeg reads them
+            ff = shutil.which("ffmpeg") or shutil.which(
+                "ffmpeg", path=str(Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "ffmpeg"))
+            if ff is None:
+                raise
+            with tempfile.TemporaryDirectory() as d:
+                wav = Path(d) / "a.wav"
+                subprocess.run([ff, "-loglevel", "error", "-y", "-i", str(path), "-vn", str(wav)], check=True,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                data, sr = sf.read(str(wav), dtype="float32", always_2d=True)
         if data.shape[1] == 1:
             data = np.repeat(data, 2, axis=1)
         self.data, self.sr = data[:, :2].copy(), sr
@@ -1392,11 +1404,12 @@ class EditorWidget(QWidget):
             QMessageBox.warning(self, "Editor", f"Couldn't read {path.name}: {e}")
             return
         music = self.sm.music_path()
+        self.player.load_error = ""
         try:
             self.player.load(music)
-            self.field.env = self.player.envelope(self.field.env_hz)
         except Exception as e:
-            self.player.error = f"couldn't load the song: {e}"
+            self.player.load_error = f"couldn't load the song: {e}"
+        self.field.env = self.player.envelope(self.field.env_hz)
         try:                                 # the song's hits, for the groove meter
             import groove
             self.onset = groove.onset_env(self.player.data[::2], self.player.sr // 2)
@@ -1739,7 +1752,7 @@ class EditorWidget(QWidget):
                  f"{len(self.field.sel)} selected" if self.field.sel else "",
                  "unsaved changes" if self.dirty else ("saved" if saved else ""),
                  "has stops: they're ignored while editing" if self.sm.has_stops else "",
-                 self.player.error]
+                 self.player.error or self.player.load_error]
         self.info.setText("   ·   ".join(p for p in parts if p))
 
     def groove(self):
