@@ -22,6 +22,39 @@
 
     <ComponentGroupRef Id="AppFiles" />
 
+    <!-- "Clean install": the app forgets the settings and saved profiles of
+         earlier versions the first time it starts (beatsmith_app.clean_install).
+         The value is the install time, so each clean install counts once. -->
+    <Property Id="CLEANINSTALL" Secure="yes" />
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Component Id="CleanInstallMark" Condition="CLEANINSTALL">
+        <RegistryValue Root="HKLM" Key="Software\BeatSmith" Name="clean" Type="string" Value="[Date] [Time]" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+    <UI>
+      <Dialog Id="CleanInstallDlg" Width="370" Height="270" Title="!(loc.InstallDirDlg_Title)">
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" />
+        </Control>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="InstallDirDlg" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Clean install" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Start fresh, or keep what earlier versions remembered." />
+        <Control Id="CleanBox" Type="CheckBox" X="20" Y="64" Width="330" Height="17" Property="CLEANINSTALL" CheckBoxValue="1" Text="Clean install: forget settings from earlier versions" />
+        <Control Id="CleanText" Type="Text" X="37" Y="86" Width="313" Height="70" NoPrefix="yes" Text="The first time BeatSmith starts, it clears the settings, window layout and saved profiles that earlier versions left behind. The songs you've made, their data and downloaded add-ons are kept." />
+      </Dialog>
+      <!-- slot it in between the folder and the ready-to-install page -->
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="CleanInstallDlg" Order="5" Condition="WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CleanInstallDlg" Order="5" Condition="NOT Installed" />
+    </UI>
+
     <StandardDirectory Id="ProgramMenuFolder">
       <Component Id="StartMenuShortcut">
         <Shortcut Id="StartMenuApp" Name="BeatSmith" Description="Make StepMania charts from songs"

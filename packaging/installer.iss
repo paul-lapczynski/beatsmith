@@ -22,9 +22,17 @@ WizardStyle=modern
 PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\BeatSmith.exe
+UsedUserAreasWarning=no
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
+Name: "clean"; Description: "Clean install: forget settings and saved profiles from earlier versions (songs, song data and add-ons are kept)"; Flags: unchecked
+
+[Registry]
+; the app clears what earlier versions left the first time it starts
+; (beatsmith_app.clean_install); the install time makes each clean install count once
+Root: HKA; Subkey: "Software\BeatSmith"; ValueType: string; ValueName: "clean"; ValueData: "{code:InstallTime}"; Flags: uninsdeletevalue; Tasks: clean
+Root: HKA; Subkey: "Software\BeatSmith"; ValueType: none; ValueName: "clean"; Flags: deletevalue; Tasks: not clean
 
 [Files]
 Source: "dist\BeatSmith\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
@@ -36,3 +44,9 @@ Name: "{autodesktop}\BeatSmith"; Filename: "{app}\BeatSmith.exe"; Tasks: desktop
 
 [Run]
 Filename: "{app}\BeatSmith.exe"; Description: "Start BeatSmith"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function InstallTime(Param: String): String;
+begin
+  Result := GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':');
+end;
