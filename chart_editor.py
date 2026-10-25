@@ -160,12 +160,19 @@ class SMFile:
         self.text = self.text[:a] + new + self.text[b:]
         # the offset is the file's, shared by all its charts
         self.text = re.sub(r"#OFFSET:[^;]*;", f"#OFFSET:{self.offset:.3f};", self.text, count=1)
-        # kept out of the StepMania folder when stepgen made the song (layout.py)
-        bak = side(self.path, ".sm.bak")
+        bak = side_file(self.path, ".sm.bak")
         if not bak.exists():
             bak.write_bytes(self.path.read_bytes())
         self.path.write_text(self.text, encoding="utf-8")
         self.charts = self._charts()
+
+
+def side_file(sm: Path, suffix: str) -> Path:
+    """Where the editor keeps a file of its own for a chart: out of the
+    StepMania folder when stepgen made the song (layout.py), else beside
+    the chart, since a chart stepgen didn't make has no data folder."""
+    p = side(sm, suffix)
+    return p if p.parent.is_dir() else sm.parent / p.name
 
 
 def parse_notes(data: str) -> list[Step]:
@@ -1772,7 +1779,7 @@ class EditorWidget(QWidget):
         try:
             import datetime
             import json
-            path = side(self.sm.path, ".groove-marks.json")
+            path = side_file(self.sm.path, ".groove-marks.json")
             log = json.loads(path.read_text()) if path.is_file() else []
             log.append({"when": datetime.datetime.now().isoformat(timespec="seconds"),
                         "chart": self.sm.charts[self.chart_i].label,
