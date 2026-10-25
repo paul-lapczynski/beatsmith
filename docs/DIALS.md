@@ -2,7 +2,7 @@
 
 BeatSmith has one overall control (**Groove**), seven **Feel** sliders, a **difficulty number** per chart, two ways to change where steps come from (**Arrows follow** and **AI assist**) and an **Advanced** table with every setting. This page shows what each one does to a chart: 4 bars made at 25%, 50% and 75% (Groove off/25/50/75, difficulty 3/5/7/9), plus what the dial test measured across whole songs. Each picture shows the 4 bars where its control changes the chart the same way it does over the whole song, and the numbers under each column are for the whole chart.
 
-Try them live: **[preview.html](preview.html)** has a slider per control, the 4 bars next to the default, and the song with a tick on every step.
+Try them live: **[the dial preview](https://paul-lapczynski.github.io/beatsmith/preview.html)** has a slider per control, the 4 bars next to the default, and the song with a tick on every step.
 
 ![Note colours](img/legend.svg)
 
