@@ -13,6 +13,13 @@ installed app stays small and nothing touches a Python you may have. Every
 place a download comes from is listed in SOURCES, shown before anything is
 downloaded and printed again as it happens.
 
+The installed app downloads them as ready-made packs attached to its own
+GitHub release (packaging/addon_pack.py builds them there): a portable
+Python with everything already installed and tested, unpacked as is, so
+nothing is installed on the user's computer and Windows and Mac work alike.
+Run from source, they're installed with pip as before. NVIDIA GPU support
+is always a pip download, as PyTorch's CUDA build is too big for a release.
+
     python addons.py install [stems|lyrics|gpu]   # what the app's download buttons run
     python addons.py sources [stems|lyrics|gpu]
     python addons.py status
@@ -20,8 +27,11 @@ downloaded and printed again as it happens.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
+import tarfile
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -39,11 +49,72 @@ WHISPER_URL = f"https://huggingface.co/{WHISPER_REPO}"
 TORCH_CUDA = "https://download.pytorch.org/whl"
 TORCH_CUDA_BUILDS = ("cu128", "cu126", "cu130")
 NAMES = {"stems": "Vocal separation", "lyrics": "AI verse detection", "gpu": "NVIDIA GPU support"}
-SIZES = {"stems": "about 1 GB", "lyrics": "about 650 MB", "gpu": "about 3 GB"}
+SIZES = {"stems": "about 250 MB", "lyrics": "about 550 MB", "gpu": "about 3 GB"}
+
+# the packs: a portable CPython from python-build-standalone (the builds uv
+# uses), pinned, with the add-on installed into it by the release workflow
+PBS_RELEASE = "20261003"
+PBS_PYTHON = "3.12.15"
+PBS_URL = "https://github.com/astral-sh/python-build-standalone/releases/download"
+RELEASES = "https://github.com/paul-lapczynski/beatsmith/releases/download"
+PACK_KINDS = ("stems", "lyrics")
+
+
+def platform_tag() -> str:
+    """windows-x64, mac-arm64 or mac-x64: which pack fits this computer."""
+    import platform
+    arm = platform.machine().lower() in ("arm64", "aarch64")
+    if os.name == "nt":
+        return "windows-x64"
+    return "mac-arm64" if arm else "mac-x64"
+
+
+def pack_name(kind: str) -> str:
+    return f"BeatSmith-addon-{kind}-{platform_tag()}" + (".zip" if os.name == "nt" else ".tar.gz")
+
+
+def pbs_python_url() -> str:
+    triple = {"windows-x64": "x86_64-pc-windows-msvc", "mac-arm64": "aarch64-apple-darwin",
+              "mac-x64": "x86_64-apple-darwin"}[platform_tag()]
+    return (f"{PBS_URL}/{PBS_RELEASE}/cpython-{PBS_PYTHON}+{PBS_RELEASE}-{triple}"
+            "-install_only.tar.gz")
+
+
+def app_version() -> str | None:
+    """The installed app's version (version.txt, written by the build); None
+    when run from source, which installs with pip instead of packs."""
+    if not getattr(sys, "frozen", False):
+        return None
+    try:
+        return (_here() / "version.txt").read_text().strip() or None
+    except OSError:
+        return None
+
+
+def pack_url(kind: str) -> str | None:
+    v = app_version()
+    return f"{RELEASES}/v{v}/{pack_name(kind)}" if v and kind in PACK_KINDS else None
+
+
+def run_env() -> dict:
+    """The environment the add-ons run in: a pack keeps its models in its own
+    cache folder, so nothing is fetched at run time."""
+    env = dict(os.environ)
+    cache = addon_dir() / "cache"
+    if cache.is_dir():
+        env["HF_HOME"] = str(cache / "huggingface")
+        env["TORCH_HOME"] = str(cache / "torch")
+    return env
 
 
 def sources(kind: str) -> list[tuple[str, str]]:
     """(what, where from) for everything installing `kind` downloads."""
+    url = pack_url(kind)
+    if url:
+        what = {"stems": "Python, Demucs, PyTorch and the htdemucs separation model (Meta)",
+                "lyrics": "faster-whisper and the Whisper 'small' speech model (Systran)"}[kind]
+        return [(f"BeatSmith's ready-made pack for {NAMES[kind]}: {what}, built and "
+                 "tested by BeatSmith's release on GitHub", url)]
     out = []
     if os.name == "nt" and not _addon_python().is_file():
         out += [(f"Python {PY_VERSION} (embeddable, from python.org)", PY_EMBED),
@@ -115,7 +186,8 @@ def _stems_done() -> bool:
         return True
     if (d / "stems.installing").is_file():
         return False
-    return (d / "python" / "Lib" / "site-packages" / "demucs").is_dir() or         any(d.glob("python/lib/python3*/site-packages/demucs"))
+    return ((d / "python" / "Lib" / "site-packages" / "demucs").is_dir()
+            or any(d.glob("python/lib/python3*/site-packages/demucs")))
 
 
 def lyrics_python() -> str | None:
@@ -192,10 +264,59 @@ def _python(log) -> Path:
     return py
 
 
+def _download_progress(url: str, dest: Path, log) -> None:
+    log(f"downloading {url}")
+    with urllib.request.urlopen(url, timeout=60) as r, open(dest, "wb") as f:
+        total, done, shown = int(r.headers.get("Content-Length") or 0), 0, -1
+        while chunk := r.read(1 << 20):
+            f.write(chunk)
+            done += len(chunk)
+            if total and done * 10 // total > shown:
+                shown = done * 10 // total
+                log(f"  {done >> 20} of {total >> 20} MB")
+
+
+def _install_pack(kind: str, log) -> None:
+    """Download the ready-made pack for this app version and unpack it into
+    the add-ons folder. Vocal separation starts the folder afresh (its pack
+    is the Python everything else goes into); AI verse detection's pack adds
+    to it."""
+    d = addon_dir()
+    if kind == "stems" and d.exists():
+        shutil.rmtree(d)          # an older pip install, or a pack from another version
+    elif kind == "lyrics" and stems_python() is None:
+        raise RuntimeError("download vocal separation first: the lyrics are read off the separated vocals")
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{kind}.ok").unlink(missing_ok=True)
+    (d / f"{kind}.installing").write_text("")
+    archive = d / pack_name(kind)
+    try:
+        _download_progress(pack_url(kind), archive, log)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            raise RuntimeError(f"there's no {NAMES[kind]} pack for this computer "
+                               f"({platform_tag()}) in BeatSmith {app_version()}'s release") from e
+        raise
+    log("unpacking")
+    if archive.suffix == ".zip":
+        with zipfile.ZipFile(archive) as zf:
+            zf.extractall(d)
+    else:
+        with tarfile.open(archive) as tf:
+            tf.extractall(d, filter="tar")
+    archive.unlink()
+    (d / f"{kind}.ok").write_text("ok")
+    (d / f"{kind}.installing").unlink(missing_ok=True)
+    log(f"{NAMES[kind]} is ready")
+
+
 def install(log=print, kind: str = "stems") -> None:
     log(f"{NAMES[kind]}: downloading from")
     for what, url in sources(kind):
         log(f"  {what}: {url}")
+    if pack_url(kind):
+        _install_pack(kind, log)
+        return
     py = _python(log)
     if kind == "gpu":
         _install_cuda_torch(py, log)
@@ -254,8 +375,10 @@ def separate(song: Path, out_dir: Path, log=print) -> bool:
     py = stems_python()
     if py is None:
         return False
-    r = subprocess.run([py, str(_here() / "stems.py"), str(song), str(out_dir)],
-                       capture_output=True, text=True, **_no_window())
+    # -I: not the script's own folder first, which in the installed app holds
+    # its compiled libraries, built for its own Python
+    r = subprocess.run([py, "-I", str(_here() / "stems.py"), str(song), str(out_dir)],
+                       capture_output=True, text=True, env=run_env(), **_no_window())
     if r.returncode != 0:
         lines = (r.stderr or r.stdout or "").strip().splitlines()
         log("stem separation failed: " + (lines[-1] if lines else "no output"))
@@ -268,8 +391,8 @@ def transcribe(vocals: Path, out_json: Path, log=print) -> bool:
     py = lyrics_python()
     if py is None:
         return False
-    r = subprocess.run([py, str(_here() / "lyrics.py"), str(vocals), str(out_json), str(whisper_dir())],
-                       capture_output=True, text=True, **_no_window())
+    r = subprocess.run([py, "-I", str(_here() / "lyrics.py"), str(vocals), str(out_json), str(whisper_dir())],
+                       capture_output=True, text=True, env=run_env(), **_no_window())
     if r.returncode != 0:
         lines = (r.stderr or r.stdout or "").strip().splitlines()
         log("reading the lyrics failed: " + (lines[-1] if lines else "no output"))

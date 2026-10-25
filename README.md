@@ -346,7 +346,7 @@ Right as the tune rises and back toward Left as it falls.
   its per-section sliders and AI verse detection only work while it's on
   (the dial test found following without stems moves steps but not toward
   the tune). It's optional and not in the installer: ticking it the first
-  time, or **Download melody analysis**, fetches it (about 1 GB, into
+  time, or **Download melody analysis**, fetches it (about 250 MB, into
   `%LOCALAPPDATA%\BeatSmith\addons`). Separating takes a minute or two per
   song, and the stems are kept in a `.stems` folder inside the song folder
   (about 15 MB, ignored by StepMania) so it only happens once. Without
@@ -358,14 +358,23 @@ Right as the tune rises and back toward Left as it falls.
   no words is an intro, outro or break. That changes how much each part
   follows the melody and what **Shorten** and **Keep all verses** treat as
   a verse. It needs vocal separation and its own download, **Download AI
-  verse detection** (about 650 MB, same folder). The words are kept as
+  verse detection** (about 550 MB, same folder). The words are kept as
   `lyrics.json` with the stems, and each section's first words are shown
   in the run's output.
 
 ### Downloads and where they come from
 
 Nothing is downloaded until you press a download button, and the app lists
-every source first (also `python addons.py sources stems` / `lyrics`):
+every source first (also `python addons.py sources stems` / `lyrics`).
+
+The installed app (Windows and Mac) downloads each add-on as one ready-made
+pack attached to its own GitHub release, for example
+`https://github.com/paul-lapczynski/beatsmith/releases/download/v1.1.0/BeatSmith-addon-stems-windows-x64.zip`.
+The release workflow builds the packs (`packaging/addon_pack.py`): a portable
+Python from [python-build-standalone](https://github.com/astral-sh/python-build-standalone)
+with the packages and model below already installed and tested, so nothing
+is installed on your computer. Run from source, the add-ons are installed
+from these instead:
 
 | What | From |
 |---|---|

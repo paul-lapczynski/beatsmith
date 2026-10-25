@@ -125,9 +125,36 @@ jobs:
           name: mac-${{ env.BEATSMITH_VERSION }}
           path: packaging/dist/*.dmg
 
+  # the add-on packs the installed app downloads (addons.py): built and tested
+  # on each platform, attached to the release beside the installers
+  addons:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build and test the packs
+        run: python packaging/addon_pack.py packs
+
+      - name: Keep the packs
+        uses: actions/upload-artifact@v4
+        with:
+          name: addons-${{ matrix.os }}
+          path: |
+            packs/*.zip
+            packs/*.tar.gz
+          compression-level: 0          # already compressed
+          retention-days: 7
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, mac]
+    needs: [windows, mac, addons]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
