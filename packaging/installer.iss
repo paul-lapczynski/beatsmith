@@ -50,3 +50,42 @@ function InstallTime(Param: String): String;
 begin
   Result := GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':');
 end;
+
+const
+  UpgradeCode = '{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}';
+  OldKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}_is1';
+
+// Before installing, take out what an earlier install left in its own place:
+// a stepgen setup.exe install (same AppId, but in the old stepgen folder, so
+// installing over it would leave those files behind), and any MSI install of
+// stepgen or BeatSmith (the MSIs share the AppId as their UpgradeCode).
+// Settings and songs stay; only the program files and shortcuts go.
+procedure RemoveOld(Root: Integer);
+var
+  Name, Cmd: String;
+  Code: Integer;
+begin
+  if RegQueryStringValue(Root, OldKey, 'DisplayName', Name) and (CompareText(Name, 'stepgen') = 0) and
+     RegQueryStringValue(Root, OldKey, 'UninstallString', Cmd) then
+    Exec(RemoveQuotes(Cmd), '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, Code);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Installer, Related: Variant;
+  I, Code: Integer;
+begin
+  Result := '';
+  RemoveOld(HKCU);
+  if IsAdminInstallMode then begin
+    RemoveOld(HKLM);
+    try
+      Installer := CreateOleObject('WindowsInstaller.Installer');
+      Related := Installer.RelatedProducts(UpgradeCode);
+      for I := Related.Count - 1 downto 0 do
+        Exec(ExpandConstant('{sys}\msiexec.exe'), '/x ' + Related.Item(I) + ' /qn /norestart', '',
+             SW_HIDE, ewWaitUntilTerminated, Code);
+    except
+    end;
+  end;
+end;
