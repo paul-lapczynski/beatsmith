@@ -97,8 +97,8 @@ begin
   if HadStepgen then
     Result := SuppressibleMsgBox('Looks like you have stepgen, the old version of BeatSmith. ' +
       'It has to be removed before BeatSmith can be installed.' + #13#10#13#10 +
-      'Your songs, settings and add-ons are kept: BeatSmith picks them up the first time it starts.' +
-      #13#10#13#10 + 'Remove stepgen and continue?', mbConfirmation, MB_YESNO, IDYES) = IDYES;
+      'Your songs, settings and add-ons are kept: BeatSmith picks them up the first time it starts.' + #13#10#13#10 +
+      'Remove stepgen and continue?', mbConfirmation, MB_YESNO, IDYES) = IDYES;
 end;
 
 procedure RunUninstaller(Root: Integer);
