@@ -19,9 +19,17 @@ WizardStyle=modern
 PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\stepgen.exe
+UsedUserAreasWarning=no
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
+Name: "clean"; Description: "Clean install: forget settings and saved profiles from earlier versions (songs, song data and add-ons are kept)"; Flags: unchecked
+
+[Registry]
+; the app clears what earlier versions left the first time it starts
+; (stepgen_app.clean_install); the install time makes each clean install count once
+Root: HKA; Subkey: "Software\stepgen"; ValueType: string; ValueName: "clean"; ValueData: "{code:InstallTime}"; Flags: uninsdeletevalue; Tasks: clean
+Root: HKA; Subkey: "Software\stepgen"; ValueType: none; ValueName: "clean"; Flags: deletevalue; Tasks: not clean
 
 [Files]
 Source: "dist\stepgen\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
@@ -33,3 +41,9 @@ Name: "{autodesktop}\stepgen"; Filename: "{app}\stepgen.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\stepgen.exe"; Description: "Start stepgen"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function InstallTime(Param: String): String;
+begin
+  Result := GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':');
+end;

@@ -92,6 +92,27 @@ def internal_log(name: str, text: str) -> None:
         pass
 
 
+def clean_install() -> None:
+    """After an install with "Clean install" ticked, forget what earlier
+    versions left: the settings and saved profiles (and old logs). The
+    installer puts the install time in the "clean" value of the stepgen key
+    (HKLM or HKCU), which is remembered once done, so each clean install
+    clears once. Made songs, their data and the add-ons stay."""
+    if sys.platform != "win32":
+        return
+    mark = "|".join(str(QSettings(rf"{root}\Software\stepgen", QSettings.NativeFormat).value("clean", "") or "")
+                    for root in ("HKEY_LOCAL_MACHINE", "HKEY_CURRENT_USER"))
+    settings = QSettings(APP_NAME, APP_NAME)
+    if mark == "|" or settings.value("cleaned", "") == mark:
+        return
+    settings.clear()
+    data = Path(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation))
+    for d in ("profiles", "logs"):
+        shutil.rmtree(data / d, ignore_errors=True)
+    settings.setValue("cleaned", mark)
+    settings.sync()
+
+
 def user_profiles_dir() -> Path:
     d = Path(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)) / "profiles"
     d.mkdir(parents=True, exist_ok=True)
@@ -1960,6 +1981,7 @@ def main():
         if icon.is_file():
             app.setWindowIcon(QIcon(str(icon)))
             break
+    clean_install()
     w = Window()
     w.show()
     if len(sys.argv) > 1:

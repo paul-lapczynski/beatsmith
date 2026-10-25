@@ -152,6 +152,11 @@ beside the lanes to place steps against the music.
 - The status line shows where you are, the counts and stepgen's live rating
   of the chart. The first save keeps the original as `.sm.bak`.
 
+Both Windows installers have a **Clean install** checkbox (on the page after the
+install folder). Ticked, the app forgets the settings, window layout and saved
+profiles of earlier versions the first time it starts; the songs you've made, their
+data and downloaded add-ons are kept.
+
 To build the Windows installer, see `packaging/BUILD.md`.
 
 ## How it works
