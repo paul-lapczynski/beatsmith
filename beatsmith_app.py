@@ -606,12 +606,13 @@ class Window(QMainWindow):
         gl = QGridLayout(mel)
         # one opt-in: it separates the vocals (a download the first time), and
         # everything below it reads the separated vocals
+        import addons
         self.stems_box = QCheckBox("Enable melody analysis (separates the vocals)")
         self.stems_box.setToolTip("So the arrows can follow the singing; about a minute per song. Uses Demucs to split each song into vocals, drums, bass and the rest. "
                                   "Arrows follow and AI verse detection work from the vocals. Kept in a "
                                   ".stems folder per song. The first time, it offers the download "
-                                  "(about 1 GB) and shows where every part comes from.")
-        self.stems_btn = QPushButton("Download melody analysis (about 1 GB)…")
+                                  f"({addons.SIZES['stems']}) and shows where every part comes from.")
+        self.stems_btn = QPushButton(f"Download melody analysis ({addons.SIZES['stems']})…")
         self.stems_btn.clicked.connect(lambda: self.install_addon("stems"))
         self.stems_box.toggled.connect(self._melody_toggled)
         gl.addWidget(self.stems_box, 0, 0, 1, 3)
@@ -672,7 +673,7 @@ class Window(QMainWindow):
             "named from that: it changes how much each part follows the melody and what Shorten "
             "and Keep all verses treat as a verse. Part of melody analysis; about a minute per song, "
             "kept with the stems.")
-        self.lyrics_btn = QPushButton("Download AI verse detection (about 650 MB)…")
+        self.lyrics_btn = QPushButton(f"Download AI verse detection ({addons.SIZES['lyrics']})…")
         self.lyrics_btn.clicked.connect(lambda: self.install_addon("lyrics"))
         self.lyrics_box.toggled.connect(self._melody_state)
         gl.addWidget(self.lyrics_box, 4, 0, 1, 3)
