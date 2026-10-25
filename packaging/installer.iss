@@ -55,37 +55,76 @@ const
   UpgradeCode = '{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}';
   OldKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}_is1';
 
-// Before installing, take out what an earlier install left in its own place:
-// a stepgen setup.exe install (same AppId, but in the old stepgen folder, so
-// installing over it would leave those files behind), and any MSI install of
-// stepgen or BeatSmith (the MSIs share the AppId as their UpgradeCode).
-// Settings and songs stay; only the program files and shortcuts go.
-procedure RemoveOld(Root: Integer);
 var
-  Name, Cmd: String;
+  OldExeUser, OldExeAll, HadStepgen: Boolean;
+  OldMsis: TStringList;          // MSI installs of stepgen or BeatSmith (the MSIs' UpgradeCode is our AppId)
+
+function IsOldExe(Root: Integer): Boolean;
+var
+  Name: String;
+begin
+  Result := RegQueryStringValue(Root, OldKey, 'DisplayName', Name) and (CompareText(Name, 'stepgen') = 0);
+end;
+
+// What an earlier install left in its own place: a stepgen setup.exe install
+// (same AppId, but in the old stepgen folder, so installing over it would
+// leave those files behind) and MSI installs, which Inno can't upgrade.
+procedure FindOld;
+var
+  Installer, Related: Variant;
+  I: Integer;
+begin
+  OldMsis := TStringList.Create;
+  OldExeUser := IsOldExe(HKCU);
+  OldExeAll := IsOldExe(HKLM);
+  HadStepgen := OldExeUser or OldExeAll;
+  try
+    Installer := CreateOleObject('WindowsInstaller.Installer');
+    Related := Installer.RelatedProducts(UpgradeCode);
+    for I := 0 to Related.Count - 1 do begin
+      OldMsis.Add(Related.Item(I));
+      if CompareText(Installer.ProductInfo(Related.Item(I), 'ProductName'), 'stepgen') = 0 then
+        HadStepgen := True;
+    end;
+  except
+  end;
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  FindOld;
+  Result := True;
+  if HadStepgen then
+    Result := SuppressibleMsgBox('Looks like you have stepgen, the old version of BeatSmith. ' +
+      'It has to be removed before BeatSmith can be installed.' + #13#10#13#10 +
+      'Your songs, settings and add-ons are kept: BeatSmith picks them up the first time it starts.' +
+      #13#10#13#10 + 'Remove stepgen and continue?', mbConfirmation, MB_YESNO, IDYES) = IDYES;
+end;
+
+procedure RunUninstaller(Root: Integer);
+var
+  Cmd: String;
   Code: Integer;
 begin
-  if RegQueryStringValue(Root, OldKey, 'DisplayName', Name) and (CompareText(Name, 'stepgen') = 0) and
-     RegQueryStringValue(Root, OldKey, 'UninstallString', Cmd) then
+  if RegQueryStringValue(Root, OldKey, 'UninstallString', Cmd) then
     Exec(RemoveQuotes(Cmd), '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, Code);
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
-  Installer, Related: Variant;
   I, Code: Integer;
 begin
   Result := '';
-  RemoveOld(HKCU);
-  if IsAdminInstallMode then begin
-    RemoveOld(HKLM);
-    try
-      Installer := CreateOleObject('WindowsInstaller.Installer');
-      Related := Installer.RelatedProducts(UpgradeCode);
-      for I := Related.Count - 1 downto 0 do
-        Exec(ExpandConstant('{sys}\msiexec.exe'), '/x ' + Related.Item(I) + ' /qn /norestart', '',
-             SW_HIDE, ewWaitUntilTerminated, Code);
-    except
-    end;
+  if (OldExeAll or (OldMsis.Count > 0)) and not IsAdminInstallMode then begin
+    Result := 'The old version is installed for everyone on this PC, so removing it needs administrator ' +
+              'rights. Run this installer again and choose to install for all users.';
+    exit;
   end;
+  if OldExeUser then
+    RunUninstaller(HKCU);
+  if OldExeAll then
+    RunUninstaller(HKLM);
+  for I := 0 to OldMsis.Count - 1 do
+    Exec(ExpandConstant('{sys}\msiexec.exe'), '/x ' + OldMsis[I] + ' /qn /norestart', '',
+         SW_HIDE, ewWaitUntilTerminated, Code);
 end;

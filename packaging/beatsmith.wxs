@@ -22,6 +22,21 @@
 
     <ComponentGroupRef Id="AppFiles" />
 
+    <!-- stepgen, the old name: its MSI (same UpgradeCode) goes on its own with
+         the MajorUpgrade, so the installer just says so; its setup.exe install
+         has to be uninstalled first -->
+    <Property Id="OLDSTEPGEN">
+      <RegistrySearch Root="HKLM" Key="Software\stepgen" Name="startmenu" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="STEPGENEXE">
+      <RegistrySearch Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}_is1" Name="DisplayName" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="STEPGENEXEUSER">
+      <RegistrySearch Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}_is1" Name="DisplayName" Type="raw" />
+    </Property>
+    <Launch Condition="Installed OR (STEPGENEXE &lt;&gt; &quot;stepgen&quot; AND STEPGENEXEUSER &lt;&gt; &quot;stepgen&quot;)"
+            Message="Looks like you have stepgen, the old version of BeatSmith. It has to be removed before BeatSmith can be installed: go to Settings &gt; Apps, uninstall stepgen, then run this installer again. Your songs, settings and add-ons are kept." />
+
     <!-- "Clean install": the app forgets the settings and saved profiles of
          earlier versions the first time it starts (beatsmith_app.clean_install).
          The value is the install time, so each clean install counts once. -->
@@ -47,6 +62,7 @@
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
         <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Clean install" />
         <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Start fresh, or keep what earlier versions remembered." />
+        <Control Id="OldText" Type="Text" X="20" Y="170" Width="330" Height="50" NoPrefix="yes" Hidden="yes" ShowCondition="OLDSTEPGEN" Text="Looks like you had stepgen, the old version of BeatSmith. It will be removed before BeatSmith installs. Your songs, settings and add-ons are kept." />
         <Control Id="CleanBox" Type="CheckBox" X="20" Y="64" Width="330" Height="17" Property="CLEANINSTALL" CheckBoxValue="1" Text="Clean install: forget settings from earlier versions" />
         <Control Id="CleanText" Type="Text" X="37" Y="86" Width="313" Height="70" NoPrefix="yes" Text="The first time BeatSmith starts, it clears the settings, window layout and saved profiles that earlier versions left behind. The songs you've made, their data and downloaded add-ons are kept." />
       </Dialog>
