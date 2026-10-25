@@ -25,6 +25,15 @@ from pathlib import Path
 
 # the installed app runs the step generator in child processes:
 # "BeatSmith.exe --run-stepgen <args>" is stepgen.py's command line
+if len(sys.argv) > 1 and sys.argv[1] in ("--run-stepgen", "--install-stems", "--install-addon"):
+    # the window reads its children as UTF-8, and the installed app's Python
+    # ignores PYTHONIOENCODING, so a song or artwork title with a character
+    # like ☆ would otherwise stop what's printing it
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
 if len(sys.argv) > 1 and sys.argv[1] == "--run-stepgen":
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import stepgen
