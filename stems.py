@@ -1,5 +1,5 @@
 """Split a song into stems (vocals, drums, bass, other) with Demucs, so
-stepgen can follow the vocal or lead line instead of everything tonal.
+BeatSmith can follow the vocal or lead line instead of everything tonal.
 
     python stems.py "My Song.ogg"            # writes My Song.stems/ next to it
     python stems.py "My Song.mp3" out_dir
@@ -18,14 +18,17 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))   # the add-ons' embedded Python leaves the script's folder off sys.path
+# the add-ons' embedded Python leaves the script's folder off sys.path; it goes
+# last, as in the installed app that folder also holds the app's own compiled
+# libraries (NumPy...), built for another Python, which must not shadow the add-ons'
+sys.path.append(str(Path(__file__).resolve().parent))
 
 STEMS = ("vocals", "drums", "bass", "other")
 MODEL = "htdemucs"
 
 
 def stems_dir_for(song_folder: Path) -> Path:
-    """Where stepgen keeps a song's stems: a hidden folder in its song folder."""
+    """Where BeatSmith keeps a song's stems: a hidden folder in its song folder."""
     return song_folder / ".stems"
 
 
@@ -104,8 +107,12 @@ def main(argv=None) -> int:
     if not argv:
         print(__doc__)
         return 1
-    if not demucs_available():
-        print("Demucs isn't installed. Run:  pip install demucs")
+    try:
+        import demucs.apply  # noqa: F401
+        import demucs.pretrained  # noqa: F401
+    except Exception as e:      # say why: "not installed" hid a clash between Pythons
+        print(f"Demucs couldn't be loaded ({e}). In the app, download vocal separation again; "
+              "from source:  pip install demucs")
         return 1
     src = Path(argv[0])
     out = Path(argv[1]) if len(argv) > 1 else src.with_suffix(".stems")

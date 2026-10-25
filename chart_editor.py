@@ -1,4 +1,4 @@
-"""Chart editor for stepgen: play the song, watch the steps scroll, and edit
+"""Chart editor for BeatSmith: play the song, watch the steps scroll, and edit
 them with the mouse or the keyboard.
 
 Runs as the app's Edit tab, or on its own:  python chart_editor.py song.sm
@@ -35,7 +35,10 @@ from __future__ import annotations
 import math
 from collections import Counter
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -169,8 +172,8 @@ class SMFile:
 
 def side_file(sm: Path, suffix: str) -> Path:
     """Where the editor keeps a file of its own for a chart: out of the
-    StepMania folder when stepgen made the song (layout.py), else beside
-    the chart, since a chart stepgen didn't make has no data folder."""
+    StepMania folder when BeatSmith made the song (layout.py), else beside
+    the chart, since a chart BeatSmith didn't make has no data folder."""
     p = side(sm, suffix)
     return p if p.parent.is_dir() else sm.parent / p.name
 
@@ -241,7 +244,8 @@ class Player:
         self.volume = 0.9
         self.click = self._make_click()
         self.stream = None
-        self.error = ""
+        self.error = ""              # why there's no sound output at all
+        self.load_error = ""         # why the current song couldn't be read
         self._clock0 = None
         self._last_cb = None         # (wall time, song frame) at the latest audio callback
         self._shown = 0.0            # last time handed out, so the clock never steps back
@@ -257,15 +261,23 @@ class Player:
 
     def load(self, path: Path | None) -> None:
         self.stop()
+        self.data, self.sr = np.zeros((1, 2), np.float32), 44100   # no leftover song if this one fails
         if path is None:
             return
+        import soundfile as sf
         try:
-            import soundfile as sf
             data, sr = sf.read(str(path), dtype="float32", always_2d=True)
         except Exception:
-            import librosa
-            y, sr = librosa.load(str(path), sr=44100, mono=False)
-            data = np.atleast_2d(y).T.astype(np.float32)
+            # some MP3s (odd tags) and m4a/wma stop libsndfile; ffmpeg reads them
+            ff = shutil.which("ffmpeg") or shutil.which(
+                "ffmpeg", path=str(Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "ffmpeg"))
+            if ff is None:
+                raise
+            with tempfile.TemporaryDirectory() as d:
+                wav = Path(d) / "a.wav"
+                subprocess.run([ff, "-loglevel", "error", "-y", "-i", str(path), "-vn", str(wav)], check=True,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                data, sr = sf.read(str(wav), dtype="float32", always_2d=True)
         if data.shape[1] == 1:
             data = np.repeat(data, 2, axis=1)
         self.data, self.sr = data[:, :2].copy(), sr
@@ -489,6 +501,7 @@ class NoteField(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WA_OpaquePaintEvent)     # paints every pixel: skip the panel behind it
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
         self.setMinimumWidth(self.RULER + COLS * self.LANE + 140)
@@ -517,14 +530,20 @@ class NoteField(QWidget):
         self.compare_names = ("", "")
         self._dx = 0.0                         # moves lane_x over to the compare lanes while painting
         self.groove = None                     # groove.Groove for the steps, when the song could be read
+        self._end_key, self._end = None, 0     # song_end, worked out again only when it can change
+        self._wave_key, self._wave = None, {}  # waveform tiles, drawn once per zoom
 
     # ---- geometry
     def song_end(self) -> int:
         """Last tick worth scrolling to: the end of the audio, or the last step."""
-        end = max((s.end for s in self.steps), default=0) + TPM
-        if self.sm is not None and len(self.env) > 1:
-            end = max(end, int(self.sm.beat_at(len(self.env) / self.env_hz) * TPB))
-        return end
+        key = (id(self.steps), len(self.steps), id(self.env), id(self.sm),
+               self.sm and (self.sm.offset, tuple(self.sm.bpms)))
+        if key != self._end_key:
+            end = max((s.end for s in self.steps), default=0) + TPM
+            if self.sm is not None and len(self.env) > 1:
+                end = max(end, int(self.sm.beat_at(len(self.env) / self.env_hz) * TPB))
+            self._end_key, self._end = key, end
+        return self._end
 
     def view_beat(self) -> float:
         return self.play_beat if self.play_beat is not None else self.cursor / TPB
@@ -682,8 +701,8 @@ class NoteField(QWidget):
 
     # ---- painting
     def paintEvent(self, _ev):
-        if self.overview is not None:
-            self.overview.update()         # keep the song strip in step
+        if self.overview is not None and self.play_beat is None:
+            self.overview.update()         # keep the song strip in step (playback updates it itself)
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
@@ -698,21 +717,14 @@ class NoteField(QWidget):
         if comparing:
             p.fillRect(QRectF(cx0, 0, lanes_w, h), QColor("#1a1824"))
 
-        # waveform strip at the right
+        # waveform strip at the right: drawn once into tiles, then only slid along
         wx = (cx0 + lanes_w if comparing else self.RULER + lanes_w) + 12
-        ww = min(w - wx - 8, 260)
+        ww = int(min(w - wx - 8, 260))
         if self.sm is not None and len(self.env) > 1 and ww > 10:
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor("#4b3f7a"))
-            # time is piecewise linear in beats, so one interp covers every row
-            knots = [-1e4] + [b for b, _ in self.sm.bpms[1:]] + [1e5]
-            ys = np.arange(0, h, 2)
-            t = np.interp(self.view_beat() + (ys - self.RECEPT) / self.ppb,
-                          knots, [self.sm.time_at(k) for k in knots])
-            i = (t * self.env_hz).astype(int)
-            ok = (i >= 0) & (i < len(self.env))
-            v = self.env[i[ok]]
-            p.drawRects([QRectF(wx + ww / 2 - a * ww / 2, y, a * ww, 2) for y, a in zip(ys[ok], v)])
+            y0 = self.RECEPT - self.view_beat() * self.ppb        # where beat 0 sits
+            T = self.WAVE_TILE
+            for k in range(math.floor(-y0 / T), math.floor((h - y0) / T) + 1):
+                p.drawPixmap(QPointF(wx, y0 + k * T), self._wave_tile(k, ww))
 
         # grid: snap lines faint, beats brighter, measures with numbers
         font = QFont()
@@ -820,6 +832,35 @@ class NoteField(QWidget):
         p.drawLine(QPointF(self.RULER - 8, self.RECEPT),
                    QPointF((cx0 if comparing else self.RULER) + lanes_w + 8, self.RECEPT))
         p.end()
+
+    WAVE_TILE = 512              # pixels of waveform per tile
+
+    def _wave_tile(self, k: int, ww: int) -> QPixmap:
+        """Tile k of the waveform: beats k*WAVE_TILE/ppb onwards, at this zoom."""
+        dpr = self.devicePixelRatioF()
+        key = (ww, self.ppb, dpr, id(self.env), id(self.sm), self.sm.offset, tuple(self.sm.bpms))
+        if key != self._wave_key or len(self._wave) > 64:
+            self._wave_key, self._wave = key, {}
+        pm = self._wave.get(k)
+        if pm is None:
+            T = self.WAVE_TILE
+            pm = QPixmap(int(ww * dpr), int(T * dpr))
+            pm.setDevicePixelRatio(dpr)
+            pm.fill(Qt.transparent)
+            # time is piecewise linear in beats, so one interp covers every row
+            knots = [-1e4] + [b for b, _ in self.sm.bpms[1:]] + [1e5]
+            ys = np.arange(0, T, 2)
+            t = np.interp((k * T + ys) / self.ppb, knots, [self.sm.time_at(b) for b in knots])
+            i = (t * self.env_hz).astype(int)
+            ok = (i >= 0) & (i < len(self.env))
+            q = QPainter(pm)
+            q.setRenderHint(QPainter.Antialiasing)
+            q.setPen(Qt.NoPen)
+            q.setBrush(QColor("#4b3f7a"))
+            q.drawRects([QRectF(ww / 2 - a * ww / 2, y, a * ww, 2) for y, a in zip(ys[ok], self.env[i[ok]])])
+            q.end()
+            self._wave[k] = pm
+        return pm
 
     def _paint_game(self, p: QPainter):
         g, now = self.game, self.clock()
@@ -1130,6 +1171,7 @@ class ChartMap(QWidget):
     def __init__(self, field: "NoteField", parent=None):
         super().__init__(parent)
         self.field = field
+        self.setAttribute(Qt.WA_OpaquePaintEvent)
         self.setFixedWidth(self.WIDTH)
         self.setCursor(Qt.PointingHandCursor)
         self._key, self._pm = None, None
@@ -1289,7 +1331,7 @@ class EditorWidget(QWidget):
         self.vol = QSlider(Qt.Horizontal, minimum=0, maximum=100)
         self.vol.setFixedWidth(110)
         self.vol.valueChanged.connect(self._volume)
-        self.vol.setValue(int(QSettings("stepgen", "stepgen").value("editor/volume", 50)))
+        self.vol.setValue(int(QSettings("BeatSmith", "BeatSmith").value("editor/volume", 50)))
         self._volume(self.vol.value())
         top.addWidget(QLabel("🔊"))
         top.addWidget(self.vol)
@@ -1392,23 +1434,24 @@ class EditorWidget(QWidget):
             QMessageBox.warning(self, "Editor", f"Couldn't read {path.name}: {e}")
             return
         music = self.sm.music_path()
+        self.player.load_error = ""
         try:
             self.player.load(music)
-            self.field.env = self.player.envelope(self.field.env_hz)
         except Exception as e:
-            self.player.error = f"couldn't load the song: {e}"
+            self.player.load_error = f"couldn't load the song: {e}"
+        self.field.env = self.player.envelope(self.field.env_hz)
         try:                                 # the song's hits, for the groove meter
             import groove
             self.onset = groove.onset_env(self.player.data[::2], self.player.sr // 2)
         except Exception:
             self.onset = None
-        # stepgen keeps a beat-only version of melody-following charts beside the song
+        # BeatSmith keeps a beat-only version of melody-following charts beside the song
         cmp = outer_of(path) / ".compare" / path.name
         try:
             self.compare_sm = SMFile(cmp) if cmp.is_file() else None
         except Exception:
             self.compare_sm = None
-        # temporary: stepgen makes "<title> (no AI)" beside songs made with AI assist
+        # temporary: BeatSmith makes "<title> (no AI)" beside songs made with AI assist
         self.twin_sm, self.twin_name = None, ""
         stem, tag = path.stem, " (no AI)"
         twin, self.twin_name = (stem[:-len(tag)], "With AI") if stem.endswith(tag) else (stem + tag, "No AI")
@@ -1432,7 +1475,7 @@ class EditorWidget(QWidget):
 
     def _compare_options(self) -> dict[str, "ChartInfo"]:
         """What this chart can be shown beside: the song's other charts, and
-        its beat-only version when stepgen kept one."""
+        its beat-only version when BeatSmith kept one."""
         out: dict[str, ChartInfo] = {}
         if self.sm is None or not self.sm.charts:
             return out
@@ -1472,7 +1515,7 @@ class EditorWidget(QWidget):
     def _volume(self, v: int):
         self.player.volume = (v / 100) ** 2
         self.vol.setToolTip(f"Volume {v}%")
-        QSettings("stepgen", "stepgen").setValue("editor/volume", v)
+        QSettings("BeatSmith", "BeatSmith").setValue("editor/volume", v)
 
     # ---- tap sync
     def toggle_tap(self):
@@ -1626,7 +1669,7 @@ class EditorWidget(QWidget):
         for w in (self.play_btn, self.chart_box, self.open_btn, self.save_btn, self.compare_box,
                   self.test_btn if compare else self.test_cmp_btn):
             w.setEnabled(False)
-        self.timer.start()
+        self._start_timer()
         self.field.setFocus()
 
     def end_game(self):
@@ -1667,7 +1710,14 @@ class EditorWidget(QWidget):
                                                  if s.kind != "M"}))
             self.player.play(max(0.0, self.sm.time_at(self.field.cursor / TPB)))
             self.play_btn.setText("❚❚ Pause")
-            self.timer.start()
+            self._start_timer()
+
+    def _start_timer(self):
+        # one frame per screen refresh: drawing faster than the screen shows
+        # only costs CPU, which slower PCs don't have to spare
+        hz = self.screen().refreshRate() if self.screen() else 60.0
+        self.timer.setInterval(max(8, int(1000 / max(hz, 30.0))))   # 125 fps at most
+        self.timer.start()
 
     def stop(self):
         if self._taps is not None:
@@ -1698,7 +1748,12 @@ class EditorWidget(QWidget):
         self.field.play_beat = self.sm.beat_at(self.player.seconds)
         self.field.update()
         self.map.update()
-        self._status()
+        # new status text re-lays out the whole panel, so it's updated a few times
+        # a second while playing rather than every frame
+        now = time.perf_counter()
+        if now - getattr(self, "_status_at", 0.0) > 0.1:
+            self._status_at = now
+            self._status()
 
     # ---- status
     def _snap_from_box(self, i):
@@ -1728,18 +1783,23 @@ class EditorWidget(QWidget):
             return
         beat = self.field.view_beat()
         steps = self.field.steps
-        per_row = Counter(s.tick for s in steps if s.kind != "M")
-        n_jumps = sum(n > 1 for n in per_row.values())
+        # this runs every frame while playing; the counts only change on edits
+        key = (id(steps), len(steps))
+        if getattr(self, "_counts_key", None) != key:
+            per_row = Counter(s.tick for s in steps if s.kind != "M")
+            self._counts_key = key
+            self._counts = (f"{len(steps)} arrows, {sum(n > 1 for n in per_row.values())} jumps, "
+                            f"{sum(s.kind in '24' for s in steps)} holds")
         rating = getattr(self, "_rating", 0.0)
         parts = [f"measure {int(beat // 4) + 1}, beat {beat % 4 + 1:.2f}",
                  f"{max(0.0, self.sm.time_at(beat)):.2f}s",
-                 f"{len(steps)} arrows, {n_jumps} jumps, {sum(s.kind in '24' for s in steps)} holds",
+                 self._counts,
                  f"rates about {rating:.1f}" if rating else "",
                  f"groove {self.field.groove.total:.0f}" if self.field.groove else "",
                  f"{len(self.field.sel)} selected" if self.field.sel else "",
                  "unsaved changes" if self.dirty else ("saved" if saved else ""),
                  "has stops: they're ignored while editing" if self.sm.has_stops else "",
-                 self.player.error]
+                 self.player.error or self.player.load_error]
         self.info.setText("   ·   ".join(p for p in parts if p))
 
     def groove(self):
@@ -1799,7 +1859,7 @@ class EditorWidget(QWidget):
         return text
 
     def rating(self) -> float:
-        """stepgen's Konami-fitted difficulty estimate for the chart as it is now."""
+        """BeatSmith's Konami-fitted difficulty estimate for the chart as it is now."""
         try:
             import stepgen
         except Exception:
@@ -1814,7 +1874,7 @@ class EditorWidget(QWidget):
         notes = []
         for t, cols in sorted(rows.items()):
             held = any(s.tick == t and s.kind in "24" for s in self.field.steps)
-            # stepgen rates on a 16th grid
+            # BeatSmith rates on a 16th grid
             notes.append(stepgen.Note(row=round(t * 4 / TPB), time=0, strength=0, kick=0,
                                       panels=cols, hold_rows=1 if held else 0))
         return stepgen.estimate_meter(notes, 60 / bpm)
@@ -1826,7 +1886,7 @@ def main():
     ed = EditorWidget()
     win.setCentralWidget(ed)
     win.resize(900, 900)
-    win.setWindowTitle("stepgen editor")
+    win.setWindowTitle("BeatSmith editor")
     win.show()
     if len(sys.argv) > 1:
         ed.open(Path(sys.argv[1]))

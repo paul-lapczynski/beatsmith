@@ -4,7 +4,7 @@ Only the parts that run neural networks can use a GPU: vocal separation
 (Demucs, PyTorch), AI verse detection (Whisper, CTranslate2) and AI assist
 (ONNX Runtime). Making the charts themselves is plain NumPy on the CPU.
 
-The choice comes from the STEPGEN_DEVICE environment variable ("auto", the
+The choice comes from the BEATSMITH_DEVICE environment variable ("auto", the
 default, or "cpu"), which the app sets per run and `stepgen.py --device`
 sets for the command line; the add-ons' own Python inherits it. With
 "auto", each part looks for, in order:
@@ -17,7 +17,7 @@ and falls back to the CPU if none is there or the GPU fails (out of memory,
 a missing driver library): a GPU only ever makes things faster, never
 breaks a run.
 
-    python accel.py          # what this computer has, as stepgen sees it
+    python accel.py          # what this computer has, as BeatSmith sees it
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ import shutil
 import subprocess
 import sys
 
-ENV = "STEPGEN_DEVICE"
+ENV = "BEATSMITH_DEVICE"
 CHOICES = ("auto", "cpu")
 
 
@@ -129,7 +129,7 @@ def apple_silicon() -> bool:
 
 
 def gpu_name() -> str | None:
-    """A short name for the GPU stepgen could use, or None."""
+    """A short name for the GPU BeatSmith could use, or None."""
     n = nvidia_gpu()
     if n:
         return n

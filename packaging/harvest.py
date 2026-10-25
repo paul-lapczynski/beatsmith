@@ -1,14 +1,14 @@
-"""Write files.wxs: every file of the PyInstaller build (dist/stepgen) as an
+"""Write files.wxs: every file of the PyInstaller build (dist/BeatSmith) as an
 MSI component, so the MSI carries the whole app. Run by build.bat."""
 import hashlib
 import sys
 from pathlib import Path
 from xml.sax.saxutils import quoteattr
 
-src = Path(sys.argv[1] if len(sys.argv) > 1 else "dist/stepgen").resolve()
+src = Path(sys.argv[1] if len(sys.argv) > 1 else "dist/BeatSmith").resolve()
 out = Path(sys.argv[2] if len(sys.argv) > 2 else "files.wxs")
-if not (src / "stepgen.exe").is_file():
-    sys.exit(f"no stepgen.exe in {src}: run PyInstaller first")
+if not (src / "BeatSmith.exe").is_file():
+    sys.exit(f"no BeatSmith.exe in {src}: run PyInstaller first")
 
 
 def ident(prefix: str, rel: str) -> str:

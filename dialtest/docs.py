@@ -47,7 +47,7 @@ def main():
     L = []
     w = L.append
     w("# What the controls do\n")
-    w("stepgen has one overall control (**Groove**), seven **Feel** sliders, a **difficulty number** "
+    w("BeatSmith has one overall control (**Groove**), seven **Feel** sliders, a **difficulty number** "
       "per chart, two ways to change where steps come from (**Arrows follow** and **AI assist**) "
       "and an **Advanced** table with every setting. This page shows what each one does to a "
       "chart: 4 bars made at 25%, 50% and 75% (Groove off/25/50/75, difficulty 3/5/7/9), "
@@ -57,7 +57,7 @@ def main():
     w("Try them live: **[preview.html](preview.html)** has a slider per control, the 4 bars next to "
       "the default, and the song with a tick on every step.\n")
     w("![Note colours](img/legend.svg)\n")
-    w("The pictures are the Medium chart of *Stepgen Demo* (examples/Stepgen Demo, a track synthesized for these docs; the "
+    w("The pictures are the Medium chart of *BeatSmith Demo* (examples/BeatSmith Demo, a track synthesized for these docs; the "
       "difficulty picture uses Hard) with the konami profile, "
       "seed 1 and the app's default difficulty targets (Easy 3, Medium 6, Hard 8), with "
       "everything else at its default. Each column's header gives the whole chart's rating, "
@@ -119,8 +119,8 @@ def main():
     w("")
     w("## Find a preset from a chart you like\n")
     w("`python dialtest/dialtest.py find-preset \"path/to/Song.sm\" --name my-style` reads the chart "
-      "(.sm, .ssc or .dwi) and its song, measures it the way the dial test measures stepgen's charts, "
-      "then makes charts and moves one control at a time until stepgen's chart of that song is as "
+      "(.sm, .ssc or .dwi) and its song, measures it the way the dial test measures BeatSmith's charts, "
+      "then makes charts and moves one control at a time until BeatSmith's chart of that song is as "
       "close to it as the controls allow. It saves `profiles/my-style.toml` (each difficulty's "
       "settings, aimed at the chart's own difficulty) and `my-style.find-preset.md` with how close "
       "each measurement got. It takes a few minutes per chart on the CPU and only reads the chart's "
@@ -134,7 +134,7 @@ def main():
       "python dialtest/dialtest.py images         # docs/img/\n"
       "python dialtest/dialtest.py preview        # docs/preview.html\n"
       "python dialtest/dialtest.py docs           # this page\n```\n")
-    w("Needs `pip install -r dialtest/requirements.txt` on top of stepgen's own. `run` takes any songs (`dialtest.py run a.ogg b.mp3`), needs only the CPU, and resumes where "
+    w("Needs `pip install -r dialtest/requirements.txt` on top of BeatSmith's own. `run` takes any songs (`dialtest.py run a.ogg b.mp3`), needs only the CPU, and resumes where "
       "it stopped. The plan is in [dialtest/TESTPLAN.md](../dialtest/TESTPLAN.md), every number in "
       "[dialtest/REPORT.md](../dialtest/REPORT.md).\n")
     OUT.parent.mkdir(parents=True, exist_ok=True)

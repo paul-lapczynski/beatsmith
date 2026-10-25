@@ -54,7 +54,7 @@ permissions:
 
 env:
   # a tag sets the version (v0.0.2 -> 0.0.2); test builds use 0.0.1
-  STEPGEN_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '0.0.1' }}
+  BEATSMITH_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '0.0.1' }}
 
 jobs:
   windows:
@@ -80,7 +80,7 @@ jobs:
 
       - name: Pick the version
         shell: bash
-        run: echo "STEPGEN_VERSION=${STEPGEN_VERSION#v}" >> "$GITHUB_ENV"
+        run: echo "BEATSMITH_VERSION=${BEATSMITH_VERSION#v}" >> "$GITHUB_ENV"
 
       - name: Build
         shell: cmd
@@ -89,13 +89,13 @@ jobs:
           # Python; onnxruntime has no wheels for that yet
           PY_PYTHON3: "3.12"
           # the Inno Setup .exe installer only goes into releases
-          STEPGEN_SKIP_EXE: ${{ startsWith(github.ref, 'refs/tags/v') && '0' || '1' }}
+          BEATSMITH_SKIP_EXE: ${{ startsWith(github.ref, 'refs/tags/v') && '0' || '1' }}
         run: packaging\build.bat
 
       - name: Keep the build
         uses: actions/upload-artifact@v4
         with:
-          name: windows-${{ env.STEPGEN_VERSION }}
+          name: windows-${{ env.BEATSMITH_VERSION }}
           path: |
             packaging/dist/*.msi
             packaging/dist/*.exe
@@ -112,7 +112,7 @@ jobs:
           cache-dependency-path: requirements*.txt
 
       - name: Pick the version
-        run: echo "STEPGEN_VERSION=${STEPGEN_VERSION#v}" >> "$GITHUB_ENV"
+        run: echo "BEATSMITH_VERSION=${BEATSMITH_VERSION#v}" >> "$GITHUB_ENV"
 
       - name: Build
         env:
@@ -122,7 +122,7 @@ jobs:
       - name: Keep the build
         uses: actions/upload-artifact@v4
         with:
-          name: mac-${{ env.STEPGEN_VERSION }}
+          name: mac-${{ env.BEATSMITH_VERSION }}
           path: packaging/dist/*.dmg
 
   release:

@@ -1,0 +1,89 @@
+<!-- WiX v5 source for the BeatSmith MSI. Built by build.bat; see BUILD.md. -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="BeatSmith" Manufacturer="BeatSmith" Version="$(Version)"
+           UpgradeCode="6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11" Scope="perMachine">
+    <SummaryInformation Description="BeatSmith: StepMania chart generator" />
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of BeatSmith is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="beatsmith.ico" SourceFile="beatsmith.ico" />
+    <Property Id="ARPPRODUCTICON" Value="beatsmith.ico" />
+    <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
+    <WixVariable Id="WixUILicenseRtf" Value="license.rtf" />
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <!-- filled by files.wxs (harvest.py): the whole PyInstaller build, with
+           Python, the libraries and ffmpeg in it -->
+      <Directory Id="INSTALLFOLDER" Name="BeatSmith" />
+    </StandardDirectory>
+
+    <ComponentGroupRef Id="AppFiles" />
+
+    <!-- stepgen, the old name: its MSI (same UpgradeCode) goes on its own with
+         the MajorUpgrade, so the installer just says so; its setup.exe install
+         has to be uninstalled first -->
+    <Property Id="OLDSTEPGEN">
+      <RegistrySearch Root="HKLM" Key="Software\stepgen" Name="startmenu" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="STEPGENEXE">
+      <RegistrySearch Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}_is1" Name="DisplayName" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="STEPGENEXEUSER">
+      <RegistrySearch Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}_is1" Name="DisplayName" Type="raw" />
+    </Property>
+    <Launch Condition="Installed OR (STEPGENEXE &lt;&gt; &quot;stepgen&quot; AND STEPGENEXEUSER &lt;&gt; &quot;stepgen&quot;)"
+            Message="Looks like you have stepgen, the old version of BeatSmith. It has to be removed before BeatSmith can be installed: go to Settings &gt; Apps, uninstall stepgen, then run this installer again. Your songs, settings and add-ons are kept." />
+
+    <!-- "Clean install": the app forgets the settings and saved profiles of
+         earlier versions the first time it starts (beatsmith_app.clean_install).
+         The value is the install time, so each clean install counts once. -->
+    <Property Id="CLEANINSTALL" Secure="yes" />
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Component Id="CleanInstallMark" Condition="CLEANINSTALL">
+        <RegistryValue Root="HKLM" Key="Software\BeatSmith" Name="clean" Type="string" Value="[Date] [Time]" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+    <UI>
+      <Dialog Id="CleanInstallDlg" Width="370" Height="270" Title="!(loc.InstallDirDlg_Title)">
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" />
+        </Control>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="InstallDirDlg" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Clean install" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Start fresh, or keep what earlier versions remembered." />
+        <Control Id="OldText" Type="Text" X="20" Y="170" Width="330" Height="50" NoPrefix="yes" Hidden="yes" ShowCondition="OLDSTEPGEN" Text="Looks like you had stepgen, the old version of BeatSmith. It will be removed before BeatSmith installs. Your songs, settings and add-ons are kept." />
+        <Control Id="CleanBox" Type="CheckBox" X="20" Y="64" Width="330" Height="17" Property="CLEANINSTALL" CheckBoxValue="1" Text="Clean install: forget settings from earlier versions" />
+        <Control Id="CleanText" Type="Text" X="37" Y="86" Width="313" Height="70" NoPrefix="yes" Text="The first time BeatSmith starts, it clears the settings, window layout and saved profiles that earlier versions left behind. The songs you've made, their data and downloaded add-ons are kept." />
+      </Dialog>
+      <!-- slot it in between the folder and the ready-to-install page -->
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="CleanInstallDlg" Order="5" Condition="WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CleanInstallDlg" Order="5" Condition="NOT Installed" />
+    </UI>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut">
+        <Shortcut Id="StartMenuApp" Name="BeatSmith" Description="Make StepMania charts from songs"
+                  Target="[INSTALLFOLDER]BeatSmith.exe" WorkingDirectory="INSTALLFOLDER" Icon="beatsmith.ico" />
+        <RegistryValue Root="HKLM" Key="Software\BeatSmith" Name="startmenu" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcut">
+        <Shortcut Id="DesktopApp" Name="BeatSmith" Target="[INSTALLFOLDER]BeatSmith.exe"
+                  WorkingDirectory="INSTALLFOLDER" Icon="beatsmith.ico" />
+        <RegistryValue Root="HKLM" Key="Software\BeatSmith" Name="desktop" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+  </Package>
+</Wix>

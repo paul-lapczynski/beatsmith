@@ -1,5 +1,5 @@
 """The fingerprint: the same measurements for every chart, from its notes
-and the song's analysis. Works on stepgen's own charts and, through
+and the song's analysis. Works on BeatSmith's own charts and, through
 from_rows(), on any chart read from a .sm (find_preset.py)."""
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ BAR = 4 * R
 DESCRIBE = {
     "steps": "steps (rows with an arrow)",
     "nps": "steps per second",
-    "meter": "stepgen's difficulty estimate",
+    "meter": "BeatSmith's difficulty estimate",
     "jump_pct": "jumps per 100 steps",
     "jump_holds": "jump freezes",
     "jump_cluster": "share of jumps in the first 2 bars of a section",
@@ -238,7 +238,7 @@ def overlap(n1: list, n2: list) -> tuple[float, float]:
 
 def from_rows(song: "harness.Song", rows: list[tuple[int, tuple[int, ...], int]]) -> list:
     """(row, panels, hold_rows) from another chart -> stepgen Notes, so the
-    same measurements work on charts stepgen didn't make. Rows are 16ths
+    same measurements work on charts BeatSmith didn't make. Rows are 16ths
     from beat 0 of *this song's* analysis."""
     a = song.a
     out = []

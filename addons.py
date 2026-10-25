@@ -1,4 +1,4 @@
-"""Optional add-ons stepgen can download on request, kept out of the
+"""Optional add-ons BeatSmith can download on request, kept out of the
 installer:
 
   stems    vocal separation (Demucs + PyTorch, about 1 GB)
@@ -66,7 +66,10 @@ def sources(kind: str) -> list[tuple[str, str]]:
 
 def addon_dir() -> Path:
     base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~/.local/share")
-    return Path(base) / "stepgen" / "addons" / "stems"
+    new, old = Path(base) / "BeatSmith" / "addons" / "stems", Path(base) / "stepgen" / "addons" / "stems"
+    # downloaded before the rename to BeatSmith: used where it is, as its
+    # Python may not work moved
+    return old if old.is_dir() and not new.is_dir() else new
 
 
 def whisper_dir() -> Path:
@@ -100,9 +103,19 @@ def stems_python() -> str | None:
         except Exception:
             pass
     p = _addon_python()
-    if p.is_file():
-        return str(p)
-    return None
+    return str(p) if p.is_file() and _stems_done() else None
+
+
+def _stems_done() -> bool:
+    """Vocal separation finished installing: stems.ok, or (from before there
+    was one) Demucs in the add-ons' Python while no install is under way. Its
+    Python is there long before Demucs is, so that alone isn't enough."""
+    d = addon_dir()
+    if (d / "stems.ok").is_file():
+        return True
+    if (d / "stems.installing").is_file():
+        return False
+    return (d / "python" / "Lib" / "site-packages" / "demucs").is_dir() or         any(d.glob("python/lib/python3*/site-packages/demucs"))
 
 
 def lyrics_python() -> str | None:
@@ -187,6 +200,9 @@ def install(log=print, kind: str = "stems") -> None:
     if kind == "gpu":
         _install_cuda_torch(py, log)
         return
+    if kind == "stems":
+        (addon_dir() / "stems.ok").unlink(missing_ok=True)
+        (addon_dir() / "stems.installing").write_text("")
     log(f"installing {', '.join(PACKAGES[kind])} from {PYPI} (this takes a while)")
     subprocess.run([str(py), "-m", "pip", "install", "--no-warn-script-location", *PACKAGES[kind]],
                    check=True, **_no_window())
@@ -194,6 +210,8 @@ def install(log=print, kind: str = "stems") -> None:
         log(f"fetching the separation model from {DEMUCS_MODEL}")
         subprocess.run([str(py), "-c", "from demucs.pretrained import get_model; get_model('htdemucs')"],
                        check=True, **_no_window())
+        (addon_dir() / "stems.ok").write_text("ok")
+        (addon_dir() / "stems.installing").unlink(missing_ok=True)
         log("vocal separation is ready")
     else:
         log(f"fetching the Whisper model from {WHISPER_URL}")
@@ -224,7 +242,7 @@ def _install_cuda_torch(py: Path, log) -> None:
     (addon_dir() / "gpu.ok").write_text("ok")
     log(f"GPU support is ready: {name}" if name else
         "GPU support is installed, but PyTorch can't see the GPU (an old NVIDIA driver?); "
-        "stepgen keeps using the CPU until it can")
+        "BeatSmith keeps using the CPU until it can")
 
 
 def _here() -> Path:

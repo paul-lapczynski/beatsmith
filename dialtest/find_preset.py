@@ -1,11 +1,11 @@
 """Find preset: read a chart you like (.sm, .ssc or .dwi) and find the
-settings that make stepgen chart its song the most like it, then save them
+settings that make BeatSmith chart its song the most like it, then save them
 as a profile.
 
     python dialtest.py find-preset "Songs/Pack/Song/Song.sm" --name sandstorm-style
 
 1. Measure the chart (the same fingerprint the dial test uses) against
-   stepgen's analysis of its song.
+   BeatSmith's analysis of its song.
 2. First guess: the closest chart in the dial test's random sample
    (results/D.jsonl), if there is one, else the defaults.
 3. Refine on the real thing: move one control at a time (25% steps, then
@@ -276,7 +276,7 @@ def main(args):
     bpms = {round(v, 2) for ch in song.charts for _, v in ch.timing.bpms}
     bpm = next(iter(bpms)) if len(bpms) == 1 else None
     if len(bpms) > 1:
-        print(f"  the chart changes tempo ({', '.join(map(str, sorted(bpms)))} BPM): stepgen uses one tempo, "
+        print(f"  the chart changes tempo ({', '.join(map(str, sorted(bpms)))} BPM): BeatSmith uses one tempo, "
               "so the match will be rough")
     print(f"analysing {audio.name} ...")
     sng = harness.load_song(Path(audio), "preset-" + Path(audio).stem.replace(" ", "_").lower()[:40], bpm)
@@ -296,7 +296,7 @@ def main(args):
         notes = to_notes(sng, ch, hl)
         want = metrics.fingerprint(sng, notes)
         meter = want["meter"]
-        print(f"{diff} ({ch.raw_difficulty} {ch.meter}): {len(notes)} steps, stepgen rates it {meter:.1f}")
+        print(f"{diff} ({ch.raw_difficulty} {ch.meter}): {len(notes)} steps, BeatSmith rates it {meter:.1f}")
         x, profile, d, got, made, n = fit(sng, want, diff, meter, args.tries, print)
         fits[diff] = {"x": x, "profile": profile, "spec": made.asked, "distance": d}
         report.append((diff, ch, want, got, x, profile, d, n))
@@ -313,7 +313,7 @@ def main(args):
                   "Sliders: " + ", ".join(f"**{k}** {v:g}" for k, v in x.items() if not k.startswith("=")), "",
                   "Exact settings it then tuned (the profile has them; the sliders alone can't get there): "
                   + (", ".join(f"`{k[1:]}` {v:g}" for k, v in x.items() if k.startswith("=")) or "none"), "",
-                  "| Measurement | your chart | stepgen | gap (noise units) |", "|---|---|---|---|"]
+                  "| Measurement | your chart | BeatSmith | gap (noise units) |", "|---|---|---|---|"]
         sc = scales(diff)
         for m in MATCH:
             a, b = want.get(m), got.get(m)
@@ -321,7 +321,7 @@ def main(args):
                 continue
             lines.append(f"| {metrics.DESCRIBE.get(m, m)} | {a:.2f} | {b:.2f} | {(b - a) / sc[m]:+.1f} |")
         lines.append("")
-    lines.append("stepgen can't copy 12th/24th notes, mines, BPM changes or stops; those are ignored.")
+    lines.append("BeatSmith can't copy 12th/24th notes, mines, BPM changes or stops; those are ignored.")
     md.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"wrote {out}\n  and {md}")
     return out

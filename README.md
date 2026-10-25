@@ -24,11 +24,11 @@ This makes `songs/My Song/` holding just `My Song.sm`, the audio converted
 to `My Song.ogg` (`--keep-format` copies it as-is instead) and the song's
 pictures, so `--out` can be a group folder in StepMania's `Songs` folder
 itself, e.g. `--out "C:/Games/StepMania 5/Songs/AATesting"` (works in
-StepMania 5, ITGmania and OutFox). Everything else stepgen keeps about the
+StepMania 5, ITGmania and OutFox). Everything else BeatSmith keeps about the
 song (stats, the settings it was made with, stems, compare charts, the
 editor's backup) goes in its own data folder, under
 `songs/<output folder name>-<id>/My Song/` (on Windows in
-`%APPDATA%\stepgen\stepgen`; run from source, it's `song-data/` in the source folder). Songs made with older versions, with the
+`%APPDATA%\BeatSmith\BeatSmith`; run from source, it's `song-data/` in the source folder). Songs made with older versions, with the
 StepMania folder inside the song's folder or everything in one folder,
 still open, and are moved to this layout when made again. Several files at
 once: `python3 stepgen.py *.mp3`.
@@ -56,7 +56,7 @@ MP3, OGG, WAV and FLAC load directly; anything else goes through ffmpeg.
 
 ## The app
 
-`run_app.bat` (or `python stepgen_app.py`) opens a window around stepgen:
+`run_app.bat` (or `python beatsmith_app.py`) opens a window around BeatSmith:
 
 - **Queue:** add songs, add a whole folder (subfolders too) or drop files and
   folders on the window. Title and artist come from the file's tags and can be
@@ -64,8 +64,8 @@ MP3, OGG, WAV and FLAC load directly; anything else goes through ffmpeg.
 - **Output folder:** any folder you pick, such as a group folder in
   StepMania's Songs folder (`Songs\AATesting`). Each song gets a folder in
   it with just the chart, the song and its pictures, ready to play; the
-  stats, settings and the rest go in stepgen's own data folder.
-  A song folder that already has charts stepgen didn't make is never touched,
+  stats, settings and the rest go in BeatSmith's own data folder.
+  A song folder that already has charts BeatSmith didn't make is never touched,
   and songs already done are skipped unless you untick that.
 - **Easy tab:** a difficulty number per chart (target mode) and the six feel
   sliders. **Advanced tab:** every setting per difficulty after the profile
@@ -84,7 +84,7 @@ MP3, OGG, WAV and FLAC load directly; anything else goes through ffmpeg.
   progress bar and Cancel. Click a finished song for its stats and log;
   the stats start with the settings it was made with (also kept in the
   data folder as `<title>.app.json`, so a skipped song shows them too).
-- **Show songs already made** (above the queue) lists the songs stepgen
+- **Show songs already made** (above the queue) lists the songs BeatSmith
   has already made in the output folder as "Made earlier" rows, with
   their meters, settings and stats. Select one to open it in the editor,
   or to regenerate it with new settings (if its song file is still where
@@ -144,13 +144,18 @@ beside the lanes to place steps against the music.
   the song's hits (locked), a rhythm that comes back in the bars around it
   (pattern), runs that end so you get a moment (breathing), comfortable
   feet with no crossovers or fast jacks (footing), and busy where the song
-  is loud (effort). On Sandstorm, Konami's Hard scores 84, stepgen's
+  is loud (effort). On Sandstorm, Konami's Hard scores 84, BeatSmith's
   Hard 8 79, and a nonstop chart 72. In a play test, **hold G** while you feel the groove:
   the score window compares the meter where you marked with elsewhere,
   and each test is saved next to the chart as `<title>.groove-marks.json`
   so the meter can be tuned to what you actually feel.
-- The status line shows where you are, the counts and stepgen's live rating
+- The status line shows where you are, the counts and BeatSmith's live rating
   of the chart. The first save keeps the original as `.sm.bak`.
+
+Both Windows installers have a **Clean install** checkbox (on the page after the
+install folder). Ticked, the app forgets the settings, window layout and saved
+profiles of earlier versions the first time it starts; the songs you've made, their
+data and downloaded add-ons are kept.
 
 To build the Windows installer, see `packaging/BUILD.md`.
 
@@ -225,7 +230,7 @@ meter 9". Each difficulty can be aimed anywhere from about 2
 to 10 (`--target Easy=3 --target Medium=6 --target Hard=9`). If a song can't
 get there (a slow ballad asked for a 10), it says so and keeps the closest.
 
-The rating is stepgen's own estimate of Konami's number, fitted on 909
+The rating is BeatSmith's own estimate of Konami's number, fitted on 909
 official Konami pad charts from the PS2 and arcade mixes. It reads steps/sec
 over the song and in its busiest bars, jumps, off-beat and quarter-beat
 steps, the longest 8th-note run and holds. It lands within one of Konami's
@@ -307,7 +312,7 @@ up to about 3 beats, and a freeze with nothing tapped under it counts as
 that rest. Where a pause lands on a row of big beats, those beats can
 become 2-4 quarter-note jumps instead, [1001][1001]: following the song and
 a break at once (needs jumps on). Pauses cost steps, so when aiming at a
-difficulty the song can't reach with them, stepgen halves the breathing
+difficulty the song can't reach with them, BeatSmith halves the breathing
 room first, then says how close it got.
 
 Pair them with `--target` so changing the feel doesn't also change how hard
@@ -315,7 +320,7 @@ the chart is: `--target Hard=8 --easy jumps=0.8 --easy holds=0.2`.
 
 ## Following the melody (early version)
 
-stepgen splits each song into sections (intro, verse, chorus, bridge,
+BeatSmith splits each song into sections (intro, verse, chorus, bridge,
 build, breakdown, outro, plus a letter per kind of music, so a chorus that
 comes back has the same letter) and can make the arrows follow the tune in
 some of them instead of the drums. While following, notes land on the
@@ -332,8 +337,8 @@ Right as the tune rises and back toward Left as it falls.
 - The sections found, and how much each one followed, are in each song's
   stats file and printed at the end of each run. Names are a best guess
   from loudness and repeats.
-- When a chart follows anywhere, stepgen also writes its beat-only version
-  to a `.compare` folder in stepgen's data folder for the song, for
+- When a chart follows anywhere, BeatSmith also writes its beat-only version
+  to a `.compare` folder in BeatSmith's data folder for the song, for
   the editor's **Compare with beat only**.
 - `--stems` separates the vocals first with Demucs, so the arrows follow
   the singing rather than everything melodic, and only while someone is
@@ -342,7 +347,7 @@ Right as the tune rises and back toward Left as it falls.
   (the dial test found following without stems moves steps but not toward
   the tune). It's optional and not in the installer: ticking it the first
   time, or **Download melody analysis**, fetches it (about 1 GB, into
-  `%LOCALAPPDATA%\stepgen\addons`). Separating takes a minute or two per
+  `%LOCALAPPDATA%\BeatSmith\addons`). Separating takes a minute or two per
   song, and the stems are kept in a `.stems` folder inside the song folder
   (about 15 MB, ignored by StepMania) so it only happens once. Without
   stems, following uses the full mix's lead line.
@@ -372,7 +377,7 @@ every source first (also `python addons.py sources stems` / `lyrics`):
 | Whisper "small" for faster-whisper (Systran) | https://huggingface.co/Systran/faster-whisper-small |
 | PyTorch and torchaudio for NVIDIA CUDA (GPU support, optional) | https://download.pytorch.org/whl/cu128 (or cu126, cu130 if that build isn't there) |
 
-Everything goes into `%LOCALAPPDATA%\stepgen\addons`; deleting that folder
+Everything goes into `%LOCALAPPDATA%\BeatSmith\addons`; deleting that folder
 removes it all.
 
 ### Hardware acceleration
@@ -390,7 +395,7 @@ the neural networks can use a GPU; making the charts is always the CPU.
 The app says which GPU it found under the option. If the GPU fails (out
 of memory, an old driver), that step runs on the CPU instead, so a GPU never
 breaks a run. On the command line it's `--device auto|cpu`, and
-`python accel.py` prints what stepgen would use on this computer.
+`python accel.py` prints what BeatSmith would use on this computer.
 
 ### Song artwork
 
@@ -478,7 +483,7 @@ like the earlier one's. The run prints which measures repeat.
 
 ## Stats dump
 
-Every run writes `<title>.stats.md` in stepgen's data folder for the song
+Every run writes `<title>.stats.md` in BeatSmith's data folder for the song
 (shown in the app's Chart stats tab): song analysis, the
 repeated sections, a stats table per difficulty, the StepMania groove radar
 (stream, voltage, air, freeze, chaos, same formulas as the game) and notes per
@@ -506,7 +511,7 @@ exact `--set` re-run, and offers to regenerate with the one you pick.
 | `--prompt-only` | No API: writes `<title>.review-prompt.md` to paste into any chat app. Save its answer as `<title>.review-reply.txt` next to the chart and run `--from-reply` for the same report and re-run offer |
 
 `--model` picks another model, `--difficulty Hard` reviews one chart. Each
-run of stepgen saves `<title>.stepgen.json` (song, profile, seed, settings)
+run of BeatSmith saves `<title>.stepgen.json` (song, profile, seed, settings)
 so the review can suggest exact re-runs.
 
 ## Comparing charts
@@ -527,5 +532,5 @@ land on the music and follow its loudness.
 
 ## Example
 
-`examples/Stepgen Test 128/` is a synthetic 128 BPM drum track with its
+`examples/BeatSmith Test 128/` is a synthetic 128 BPM drum track with its
 generated chart, useful for checking that your pad's timing feels right.

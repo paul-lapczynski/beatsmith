@@ -1,12 +1,12 @@
 # What the controls do
 
-stepgen has one overall control (**Groove**), seven **Feel** sliders, a **difficulty number** per chart, two ways to change where steps come from (**Arrows follow** and **AI assist**) and an **Advanced** table with every setting. This page shows what each one does to a chart: 4 bars made at 25%, 50% and 75% (Groove off/25/50/75, difficulty 3/5/7/9), plus what the dial test measured across whole songs. Each picture shows the 4 bars where its control changes the chart the same way it does over the whole song, and the numbers under each column are for the whole chart.
+BeatSmith has one overall control (**Groove**), seven **Feel** sliders, a **difficulty number** per chart, two ways to change where steps come from (**Arrows follow** and **AI assist**) and an **Advanced** table with every setting. This page shows what each one does to a chart: 4 bars made at 25%, 50% and 75% (Groove off/25/50/75, difficulty 3/5/7/9), plus what the dial test measured across whole songs. Each picture shows the 4 bars where its control changes the chart the same way it does over the whole song, and the numbers under each column are for the whole chart.
 
 Try them live: **[the dial preview](https://paul-lapczynski.github.io/beatsmith/preview.html)** has a slider per control, the 4 bars next to the default, and the song with a tick on every step.
 
 ![Note colours](img/legend.svg)
 
-The pictures are the Medium chart of *Stepgen Demo* (examples/Stepgen Demo, a track synthesized for these docs; the difficulty picture uses Hard) with the konami profile, seed 1 and the app's default difficulty targets (Easy 3, Medium 6, Hard 8), with everything else at its default. Each column's header gives the whole chart's rating, step count, jumps and freezes.
+The pictures are the Medium chart of *BeatSmith Demo* (examples/BeatSmith Demo, a track synthesized for these docs; the difficulty picture uses Hard) with the konami profile, seed 1 and the app's default difficulty targets (Easy 3, Medium 6, Hard 8), with everything else at its default. Each column's header gives the whole chart's rating, step count, jumps and freezes.
 
 ## At a glance
 
@@ -22,7 +22,7 @@ The pictures are the Medium chart of *Stepgen Demo* (examples/Stepgen Demo, a tr
 | [Repetition](#repetition) | Choruses danced fresh each time, or the same steps when the music repeats | **A** |
 | [Difficulty number](#difficulty-number) | Aims each chart at a number on Konami's 1-10 scale | **A** |
 | [Arrows follow (melody)](#arrows-follow-melody) | Steps from the drums, or from the tune (in choruses most) | **D** |
-| [AI assist](#ai-assist) | Who decides where the steps go: stepgen's rules or the AI model | **B** |
+| [AI assist](#ai-assist) | Who decides where the steps go: BeatSmith's rules or the AI model | **B** |
 
 The grade is from the dial test ([how it's scored](../dialtest/REPORT.md#1-grades)): A means it clearly moves what its label says, always in the same direction, on every song, without changing other things, and keeps working with a difficulty target on.
 
@@ -91,7 +91,7 @@ Moves run_breaks, recovery and stomps.
 - On Medium and Hard it does what it says. With no target, runs longer than 8 steps go from about 1 a minute to none, and the average run gets shorter.
 - Stomps (quarter-note jumps on a row of big beats) go from none to about 13 per Hard chart with a target. The top end no longer turns most pauses into stomps.
 - It does nothing on Easy (Easy charts are beat notes with no runs to break up); the app says so next to the slider. That's most of why its grade is low.
-- With a difficulty number on Hard, the number comes first. Pauses cost steps, so stepgen raises the density to make up for them, and if it still can't reach the number it eases Breathing room to 50% for that chart. In the test that happened to 67% of Hard charts asked for 75% or 100%, so above 50% they often look alike. The chart's stats (.stats.md, "Made with") and the app's Settings used panel say when it happens. For more pauses on a hard chart, aim a little lower (7 instead of 8) or turn the number off.
+- With a difficulty number on Hard, the number comes first. Pauses cost steps, so BeatSmith raises the density to make up for them, and if it still can't reach the number it eases Breathing room to 50% for that chart. In the test that happened to 67% of Hard charts asked for 75% or 100%, so above 50% they often look alike. The chart's stats (.stats.md, "Made with") and the app's Settings used panel say when it happens. For more pauses on a hard chart, aim a little lower (7 instead of 8) or turn the number off.
 
 ## Footwork
 
@@ -130,7 +130,7 @@ Moves rhythm_repeat, arrow_repeat and intensity_variation (down).
 
 ## Difficulty number
 
-Each chart can be aimed at a number. stepgen makes the chart, rates it, and turns one intensity dial until the rating lands. In order, the dial adds steps and jumps, then 8th runs and fewer freezes, then quarter-beat bursts (above about 6), then 16th streams (8 and up). Going down, it drops to beat notes only.
+Each chart can be aimed at a number. BeatSmith makes the chart, rates it, and turns one intensity dial until the rating lands. In order, the dial adds steps and jumps, then 8th runs and fewer freezes, then quarter-beat bursts (above about 6), then 16th streams (8 and up). Going down, it drops to beat notes only.
 
 ![Difficulty number at different settings](img/difficulty.svg)
 
@@ -155,19 +155,19 @@ Sets melody_follow. Choruses get the full amount, verses and bridges 60%, intros
 - It changes the chart: at 100%, about a third of the step positions are different from the beat-only chart.
 - It needs vocal separation (stems) to do what it says. Re-tested on 4 songs with stems (dialtest/follow_stems.py): with stems, steps land more on the vocal and lead notes as Follow goes up (62.6 to 66.6 on a 0-100 scale where 50 is random, seed noise 0.4), on every song and every difficulty, most on Easy (65.7 to 71.5). Without stems it moves just as many steps, but not toward the vocal.
 - The effect is modest: steps still sit mostly on the drums (about 90 on the same scale, unchanged), so it nudges the chart toward the tune rather than rebuilding it.
-- Arrows rising and falling with the tune is barely measurable even with stems. stepgen reads the melody's brightness, not its pitch, which is a weak stand-in. Reading real pitch from the vocal stem is the likely fix.
+- Arrows rising and falling with the tune is barely measurable even with stems. BeatSmith reads the melody's brightness, not its pitch, which is a weak stand-in. Reading real pitch from the vocal stem is the likely fix.
 - The Feel sliders keep working with it on. With stems, Footwork keeps its full effect at Follow 100 (the earlier full-mix test showed it losing most of it).
 
 ## AI assist
 
-Sets ai_assist, which blends the AI model's idea of where a step belongs into stepgen's own.
+Sets ai_assist, which blends the AI model's idea of where a step belongs into BeatSmith's own.
 
 ![AI assist at different settings](img/ai.svg)
 
 **Test grade B** (score per chart: Easy 86, Medium 78, Hard 82). On Hard: moves it 91 · same direction 80 · survives target 96 · stays in its lane 82 · every song 50 (each out of 100).
 
 - At 100% about a third of the step positions move. The model mainly moves steps, not how many or what kind.
-- stepgen's own steps already sit on moments the model likes (94th percentile), so there isn't much room to improve on that measure.
+- BeatSmith's own steps already sit on moments the model likes (94th percentile), so there isn't much room to improve on that measure.
 - The Feel sliders still rule with it on: Jumps, Holds, Footwork and Repetition keep 98-113% of their effect at AI 100, Energy and Speed about 75-80%. Breathing room drops to 40%, because the model's steps form different runs.
 - Repeated sections get a little more alike (the model hears the same music the same way).
 
@@ -190,11 +190,11 @@ Every setting, per chart, after the profile and the sliders. Editing a cell pins
 
 ## Find a preset from a chart you like
 
-`python dialtest/dialtest.py find-preset "path/to/Song.sm" --name my-style` reads the chart (.sm, .ssc or .dwi) and its song, measures it the way the dial test measures stepgen's charts, then makes charts and moves one control at a time until stepgen's chart of that song is as close to it as the controls allow. It saves `profiles/my-style.toml` (each difficulty's settings, aimed at the chart's own difficulty) and `my-style.find-preset.md` with how close each measurement got. It takes a few minutes per chart on the CPU and only reads the chart's folder.
+`python dialtest/dialtest.py find-preset "path/to/Song.sm" --name my-style` reads the chart (.sm, .ssc or .dwi) and its song, measures it the way the dial test measures BeatSmith's charts, then makes charts and moves one control at a time until BeatSmith's chart of that song is as close to it as the controls allow. It saves `profiles/my-style.toml` (each difficulty's settings, aimed at the chart's own difficulty) and `my-style.find-preset.md` with how close each measurement got. It takes a few minutes per chart on the CPU and only reads the chart's folder.
 
-- Checked on a chart stepgen made with known settings (Jumps 80, Breathing 20, Holds 70): it found Jumps 75, Breathing 25, Holds 75, with everything else left at 50.
+- Checked on a chart BeatSmith made with known settings (Jumps 80, Breathing 20, Holds 70): it found Jumps 75, Breathing 25, Holds 75, with everything else left at 50.
 - After the sliders it fine-tunes a few exact settings the sliders can't reach (jacks, run_breaks, hold_rate and others) and writes those into the profile too.
-- On a real hand-made chart (Wrong Note, Hard, by Paul) it got close on jumps, freezes, holds and the 8th/beat mix, and couldn't match the jacks: the chart has 12 jacks per 100 steps and stepgen makes about 4 whatever the settings, because the jacks setting is weak (it's been kept, and could be made stronger). The result is in [dialtest/examples](../dialtest/examples/).
+- On a real hand-made chart (Wrong Note, Hard, by Paul) it got close on jumps, freezes, holds and the 8th/beat mix, and couldn't match the jacks: the chart has 12 jacks per 100 steps and BeatSmith makes about 4 whatever the settings, because the jacks setting is weak (it's been kept, and could be made stronger). The result is in [dialtest/examples](../dialtest/examples/).
 
 ## Re-running the tests
 
@@ -206,5 +206,5 @@ python dialtest/dialtest.py preview        # docs/preview.html
 python dialtest/dialtest.py docs           # this page
 ```
 
-Needs `pip install -r dialtest/requirements.txt` on top of stepgen's own. `run` takes any songs (`dialtest.py run a.ogg b.mp3`), needs only the CPU, and resumes where it stopped. The plan is in [dialtest/TESTPLAN.md](../dialtest/TESTPLAN.md), every number in [dialtest/REPORT.md](../dialtest/REPORT.md).
+Needs `pip install -r dialtest/requirements.txt` on top of BeatSmith's own. `run` takes any songs (`dialtest.py run a.ogg b.mp3`), needs only the CPU, and resumes where it stopped. The plan is in [dialtest/TESTPLAN.md](../dialtest/TESTPLAN.md), every number in [dialtest/REPORT.md](../dialtest/REPORT.md).
 

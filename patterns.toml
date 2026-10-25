@@ -1,4 +1,4 @@
-# stepgen pattern settings, one table per difficulty.
+# BeatSmith pattern settings, one table per difficulty.
 # Sliders run 0..1 (0 = off / avoid, 1 = lots / lenient).
 # Retired (no measurable effect in the dial test, dialtest/REPORT.md; still
 # read, but no slider moves them): jack_max, flow, hold_complexity,
@@ -106,13 +106,13 @@
 #                  falls away gets a jump too. With energy_follow, the steps
 #                  ease off again when the music does
 # melody_follow    how much the arrows follow the tune instead of the drums
-#                  (0 = off). stepgen finds the song's sections; choruses
+#                  (0 = off). BeatSmith finds the song's sections; choruses
 #                  get the full amount, verses and bridges 60%, intros,
 #                  outros and builds 30%. While following, notes land on
 #                  the tune's rhythm and the arrows climb right as it rises
 #                  and left as it falls. Best with --stems (vocals
 #                  separated); --follow chorus=1 sets a section exactly
-# ai_assist        0 = stepgen's own onset/melody detection decides which
+# ai_assist        0 = BeatSmith's own onset/melody detection decides which
 #                  moments get a step, 1 = the AI model trained on
 #                  hand-made charts decides; in between blends the two.
 #                  Needs models/step_placement_v1.onnx. Same as --ai 1 for
@@ -120,13 +120,13 @@
 #
 # Difficulty:
 # target_meter     aim this chart at a difficulty number (1-10, Konami's
-#                  scale), e.g. 9. stepgen rates each try and turns density,
+#                  scale), e.g. 9. BeatSmith rates each try and turns density,
 #                  jumps, holds and faster notes up or down together until
 #                  it lands there; the settings above still decide how it
 #                  feels. 0 = off: use the settings as written. Same as
 #                  --target Hard=9 on the command line
 #
-# The number StepMania shows is always stepgen's own rating of the chart,
+# The number StepMania shows is always BeatSmith's own rating of the chart,
 # fitted on 909 official Konami charts (within one of Konami's number 70%
 # of the time). meter_min/max are no longer used and are ignored.
 

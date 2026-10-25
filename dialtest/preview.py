@@ -1,9 +1,9 @@
 """docs/preview.html: a one-file page with a slider per control. Moving it
-swaps in the 4 bars stepgen made at that setting (pre-made here, nine
+swaps in the 4 bars BeatSmith made at that setting (pre-made here, nine
 positions per slider) next to the same bars at the default, and Play runs
 the song under them with a tick on every step.
 
-    python dialtest.py preview [--song "Stepgen Demo"]
+    python dialtest.py preview [--song "BeatSmith Demo"]
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def dial_list():
                 "density, max_nps, jump, hold_rate, half_beats, grid, quarter_beats, flow_spice, 16th streams"))
     out.append(("follow", "Arrows follow", "the beat", "the tune",
                 [(f"{p:g}%", C(follow=p)) for p in POS], 0, "melody_follow"))
-    out.append(("ai", "Steps placed by", "stepgen's rules", "the AI model",
+    out.append(("ai", "Steps placed by", "BeatSmith's rules", "the AI model",
                 [(f"{p:g}%", C(ai=p)) for p in POS], 0, "ai_assist"))
     return out
 
