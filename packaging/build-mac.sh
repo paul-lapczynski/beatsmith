@@ -5,11 +5,11 @@
 # Needs Python 3.12 (python3.12 on PATH, or set PYTHON). See BUILD.md.
 set -e
 cd "$(dirname "$0")"
-: "${BEATSMITH_VERSION:=0.0.1}"
-export BEATSMITH_VERSION
 
 [ -d .venv-mac ] || "${PYTHON:-python3.12}" -m venv .venv-mac
 . .venv-mac/bin/activate
+BEATSMITH_VERSION=$(python version.py)
+export BEATSMITH_VERSION
 python -m pip install --upgrade pip >/dev/null
 python -m pip install -r ../requirements.txt -r ../requirements-app.txt pyinstaller
 

@@ -19,8 +19,9 @@ desktop shortcut, shows up in Apps & features for uninstalling, and
 installing a newer version replaces the old one.
 
 Set `BEATSMITH_VERSION=0.0.2` before running the build to change the version
-number (an MSI only upgrades when the number goes up). It defaults to 0.0.1;
-releases from GitHub take the number from the tag (`v0.0.2` makes 0.0.2).
+number (an MSI only upgrades when the number goes up). Otherwise the build reads
+the root `version.txt`. Release tags must agree with that file. See
+[RELEASING.md](RELEASING.md) for version PRs and release automation.
 
 The installer isn't code-signed, so Windows SmartScreen shows "unknown
 publisher" the first time. Click "More info", then "Run anyway".
@@ -41,5 +42,5 @@ On a Mac with Python 3.12, run `sh packaging/build-mac.sh`. It makes
 
 The app isn't signed with an Apple Developer ID, so the first time it's
 opened macOS blocks it: open System Settings > Privacy & Security and click
-"Open Anyway" next to BeatSmith. The vocal separation and AI verse detection
-add-ons aren't available in the Mac app yet. ffmpeg isn't bundled.
+"Open Anyway" next to BeatSmith. Vocal separation and AI verse detection
+download as ready-made packs on Apple Silicon Macs. ffmpeg isn't bundled.

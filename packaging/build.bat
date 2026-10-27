@@ -7,7 +7,6 @@ rem It installs what it needs to build (Python, the .NET SDK, WiX) with winget i
 rem See BUILD.md.
 setlocal
 cd /d "%~dp0"
-if "%BEATSMITH_VERSION%"=="" set BEATSMITH_VERSION=0.0.1
 
 rem ---- build tools --------------------------------------------------------
 where py >nul 2>nul || (
@@ -32,6 +31,9 @@ if not exist .venv (
   py -3 -m venv .venv || goto :fail
 )
 call .venv\Scripts\activate.bat
+python version.py > version-build.tmp || goto :fail
+set /p BEATSMITH_VERSION=<version-build.tmp
+del version-build.tmp
 python -m pip install --upgrade pip >nul
 python -m pip install -r ..\requirements.txt -r ..\requirements-app.txt pyinstaller || goto :fail
 

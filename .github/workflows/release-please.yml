@@ -1,0 +1,67 @@
+# Paul reviews and merges the version PR. Only a successful main installer
+# build may create its draft release and tag. The tag runs release.yml.
+name: Prepare release
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check setup and the successful build
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BUILT_SHA: ${{ github.event.workflow_run.head_sha }}
+          EVENT: ${{ github.event_name }}
+        shell: bash
+        run: |
+          test -n "$RELEASE_TOKEN" || { echo 'Set RELEASE_PLEASE_TOKEN before enabling release automation.'; exit 1; }
+          current=$(gh api "repos/$REPOSITORY/commits/main" --jq .sha)
+          if [ "$EVENT" = workflow_dispatch ]; then
+            built=$(gh run list --repo "$REPOSITORY" --workflow release.yml --branch main --event push --commit "$current" --json conclusion --jq '.[0].conclusion')
+            test "$built" = success || { echo 'The current main commit has no successful Release build.'; exit 1; }
+          else
+            test "$current" = "$BUILT_SHA" || { echo 'Main changed since this build. Wait for its build.'; exit 1; }
+          fi
+
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          target-branch: main
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # GitHub can defer creating a draft release's tag until publication.
+      # Explicitly ensure it exists so the installer workflow can start.
+      - name: Start the tagged installer build
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+          SHA: ${{ steps.release.outputs.sha }}
+        shell: bash
+        run: |
+          if ! gh api "repos/$REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            gh api --method POST "repos/$REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$SHA"
+          fi
