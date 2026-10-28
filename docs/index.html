@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BeatSmith</title>
-<meta name="description" content="BeatSmith turns any song into StepMania dance charts: Easy, Medium and Hard.">
+<meta name="description" content="BeatSmith turns your songs into StepMania dance charts: Easy, Medium and Hard.">
 <meta property="og:title" content="BeatSmith">
-<meta property="og:description" content="Turns any song into StepMania dance charts: Easy, Medium and Hard.">
+<meta property="og:description" content="Turns your songs into StepMania dance charts: Easy, Medium and Hard.">
 <meta property="og:image" content="https://paul-lapczynski.github.io/beatsmith/img/social-preview.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="img/logo.png">
@@ -43,6 +43,11 @@ h1 { font-family: var(--display); font-weight: 700; font-size: clamp(48px, 9vw, 
 
 h2 { font-family: var(--display); font-size: 26px; margin: 0 0 20px; }
 section { padding: 32px 0; border-top: 1px solid var(--line); }
+.shots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+.shot { margin: 0; }
+.shot img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.shot figcaption { color: var(--muted); font-size: 14px; padding-top: 10px; }
+.shot.wide { grid-column: 1 / -1; }
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; text-decoration: none; display: block;
         border-top: 4px solid var(--accent, var(--blue)); transition: transform .15s, border-color .15s; }
@@ -68,7 +73,7 @@ footer { padding: 32px 0 56px; color: var(--muted); font-size: 14px; border-top:
   .hero img { width: 180px; height: 180px; margin: 0 auto; }
   .tag { margin-left: auto; margin-right: auto; }
   .buttons { justify-content: center; }
-  .cards, .features { grid-template-columns: 1fr; }
+  .cards, .features, .shots { grid-template-columns: 1fr; }
 }
 </style></head>
 <body>
@@ -77,9 +82,10 @@ footer { padding: 32px 0 56px; color: var(--muted); font-size: 14px; border-top:
     <img src="img/logo.png" alt="BeatSmith icon: an anvil inside the four dance arrows">
     <div>
       <h1>BeatSmith</h1>
-      <p class="tag">Turns any song into StepMania dance charts: Easy, Medium and Hard.</p>
+      <p class="tag">Turns your songs into StepMania dance charts: Easy, Medium and Hard.</p>
       <div class="buttons">
         <a class="btn primary" href="https://github.com/paul-lapczynski/beatsmith/releases/latest">Download</a>
+        <a class="btn" href="https://github.com/paul-lapczynski/beatsmith/blob/main/docs/APP_GUIDE.md">App guide</a>
         <a class="btn" href="preview.html">Try the dials</a>
         <a class="btn" href="https://github.com/paul-lapczynski/beatsmith">GitHub</a>
       </div>
@@ -90,21 +96,39 @@ footer { padding: 32px 0 56px; color: var(--muted); font-size: 14px; border-top:
   <section>
     <h2>Start here</h2>
     <div class="cards">
-      <a class="card" style="--accent: var(--blue)" href="preview.html">
-        <h3>Dial preview</h3>
-        <p>Move a slider and watch the arrows change against the default, with the song playing a tick on every step.</p>
-        <span class="go">Open the preview</span>
+      <a class="card" style="--accent: var(--blue)" href="https://github.com/paul-lapczynski/beatsmith/blob/main/docs/APP_GUIDE.md">
+        <h3>Use the app</h3>
+        <p>A screenshot tour: install, make your first song, change its settings, edit notes and fix timing.</p>
+        <span class="go">Open the app guide</span>
       </a>
       <a class="card" style="--accent: var(--down)" href="https://github.com/paul-lapczynski/beatsmith/blob/main/docs/DIALS.md">
-        <h3>What every control does</h3>
-        <p>Each slider and setting, with pictures of the arrows at 25%, 50% and 75% and what the dial test measured.</p>
-        <span class="go">Read the guide</span>
+        <h3>Understand the controls</h3>
+        <p>Difficulty, Groove and Feel sliders, with visual comparisons and the earlier dial measurements.</p>
+        <span class="go">Read the control reference</span>
       </a>
-      <a class="card" style="--accent: var(--left)" href="https://github.com/paul-lapczynski/beatsmith#quick-start">
-        <h3>Quick start</h3>
-        <p>Install the app, or run it from source, point it at your songs and play them in StepMania, ITGmania or OutFox.</p>
-        <span class="go">Get going</span>
+      <a class="card" style="--accent: var(--left)" href="https://github.com/paul-lapczynski/beatsmith/blob/main/AI_USAGE.md">
+        <h3>AI Usage</h3>
+        <p>Optional local AI features, downloads, cloud-review boundaries and AI-assisted development.</p>
+        <span class="go">Read the disclosure</span>
       </a>
+    </div>
+  </section>
+
+  <section>
+    <h2>Meet the app</h2>
+    <div class="shots">
+      <figure class="shot wide">
+        <a href="img/screenshots/generate.png"><img src="img/screenshots/generate.png" alt="BeatSmith Generate tab with a synthetic song queue and difficulty controls" width="1540" height="1030" loading="lazy"></a>
+        <figcaption>Queue songs, choose their difficulty and feel, then generate. Screenshots use synthetic demo content.</figcaption>
+      </figure>
+      <figure class="shot">
+        <a href="img/screenshots/editor.png"><img src="img/screenshots/editor.png" alt="BeatSmith chart editor with arrows and waveform" width="1540" height="1030" loading="lazy"></a>
+        <figcaption>Edit notes and check their timing against the waveform.</figcaption>
+      </figure>
+      <figure class="shot">
+        <a href="img/screenshots/compare.png"><img src="img/screenshots/compare.png" alt="Hard and Medium charts shown side by side" width="1540" height="1030" loading="lazy"></a>
+        <figcaption>Compare difficulties and play-test a chart before taking it to a pad.</figcaption>
+      </figure>
     </div>
   </section>
 
@@ -113,13 +137,20 @@ footer { padding: 32px 0 56px; color: var(--muted); font-size: 14px; border-top:
     <ul class="features">
       <li><b>Three charts per song.</b> Easy, Medium and Hard, each aimed at the difficulty number you pick.</li>
       <li><b>Steps on the music.</b> Arrows land on the beats and hits you hear, with holds on long notes.</li>
-      <li><b>Follows the melody.</b> Optionally separates the vocals, so the steps can follow the singing.</li>
+      <li><b>Experimental melody analysis.</b> Optional vocal separation can bias steps toward the singing; it is not exact transcription.</li>
       <li><b>Feel sliders.</b> Groove, jumps, speed, breathing room, footwork, holds and repetition.</li>
       <li><b>AI assist.</b> A trained model can help decide where each step belongs.</li>
       <li><b>Song artwork.</b> Banner, background and jacket from the song's cover art.</li>
       <li><b>Ready to play.</b> Point the output at a StepMania Songs folder and the songs show up.</li>
       <li><b>Chart editor.</b> Play the song, watch the steps scroll and fix anything by hand.</li>
     </ul>
+  </section>
+
+  <section>
+    <h2>AI, explained</h2>
+    <p>Normal desktop generation processes audio on your computer. Optional local AI helps with step placement, vocal separation and verse detection. Downloads and optional artwork searches use the internet; a separate unfinished command-line review tool can contact cloud AI when explicitly run.</p>
+    <p>Claude and OpenAI Codex have also assisted development, testing and documentation. <a href="https://github.com/paul-lapczynski/beatsmith/blob/main/AI_USAGE.md">Read the full AI Usage disclosure</a>.</p>
+    <p class="small">Generated charts and automated scores need listening, editing and play testing. BeatSmith provides no song library.</p>
   </section>
 
   <footer>

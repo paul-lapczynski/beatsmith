@@ -8,9 +8,9 @@ you to allow them). Then it makes a private Python environment in
 `packaging\.venv`, fetches ffmpeg, bundles everything with PyInstaller and
 builds:
 
-- `packaging\dist\BeatSmith-0.0.1.msi`: the installer to share
+- `packaging\dist\BeatSmith-<version>.msi`: the installer to share
 - `packaging\dist\BeatSmith\BeatSmith.exe`: the app, runnable without installing
-- `packaging\dist\BeatSmith-setup-0.0.1.exe`: an .exe installer as well, only
+- `packaging\dist\BeatSmith-setup-<version>.exe`: an .exe installer as well, only
   if Inno Setup 6 happens to be installed
 
 **People who install the MSI need nothing else.** Python, librosa, Qt and
@@ -22,13 +22,16 @@ Use the same installer type when upgrading. The MSI cannot upgrade a copy
 installed by setup.exe; it blocks that combination and asks you to remove
 the setup.exe copy first. If both appear in Settings > Apps, uninstall both
 BeatSmith entries, then install one current copy. Songs and settings are kept;
-downloaded add-ons are removed by the new uninstallers. Overlapping installers can leave incompatible Python files in the
-same application folder.
+downloaded add-ons are removed by the new uninstallers. Overlapping installers
+can leave incompatible Python files in the same application folder.
 
 Each build starts the frozen app's command-line entry point before making
 installers. Windows CI also checks that the compiled MSI blocks existing
 setup.exe registrations, then installs the MSI into a temporary location and
-checks startup there. These checks do not run the app's normal settings flow.
+checks startup there. CI also tests actual MSI upgrades and EXE updates, then
+uninstalls both types and checks that add-on fixtures are removed while
+neighboring user data remains. These run only on disposable GitHub runners;
+they do not run the app's normal settings flow.
 
 Set `BEATSMITH_VERSION=0.0.2` before running the build to change the version
 number (an MSI only upgrades when the number goes up). Otherwise the build reads
