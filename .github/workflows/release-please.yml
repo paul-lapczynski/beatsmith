@@ -43,13 +43,46 @@ jobs:
             test "$current" = "$BUILT_SHA" || { echo 'Main changed since this build. Wait for its build.'; exit 1; }
           fi
 
-      - uses: googleapis/release-please-action@v4
+      - name: Check for an unfinished release
+        id: pending
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          drafts=$(gh api --paginate "repos/$REPOSITORY/releases?per_page=100" --jq '.[] | select(.draft) | .tag_name')
+          if [ -n "$drafts" ]; then
+            echo 'A draft release is still waiting for its installer builds or recovery:'
+            echo "$drafts"
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      # Release first. A draft may not yet have a Git tag, so a combined
+      # release-and-PR call can replay its old commits into another version.
+      - name: Create the reviewed release
+        uses: googleapis/release-please-action@v4
         id: release
+        if: steps.pending.outputs.ready == 'true'
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           target-branch: main
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          skip-github-pull-request: true
+
+      - name: Propose the next version
+        if: >-
+          steps.pending.outputs.ready == 'true' &&
+          steps.release.outputs.release_created != 'true'
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          target-branch: main
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-release: true
 
       # GitHub can defer creating a draft release's tag until publication.
       # Explicitly ensure it exists so the installer workflow can start.
