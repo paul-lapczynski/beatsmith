@@ -38,7 +38,7 @@ set /p BEATSMITH_VERSION=<version-build.tmp
 del version-build.tmp
 python -m pip install --upgrade pip >nul
 python -m pip install -r ..\requirements.txt -r ..\requirements-app.txt pyinstaller || goto :fail
-python -m unittest discover -s . -p test_*.py || goto :fail
+python -m unittest discover -s ../tests -p test_*.py || goto :fail
 
 if not exist ffmpeg\ffmpeg.exe (
   echo Fetching ffmpeg for .wma/.m4a support...
@@ -47,7 +47,7 @@ if not exist ffmpeg\ffmpeg.exe (
 )
 
 pyinstaller --noconfirm --clean --distpath dist --workpath build beatsmith.spec || goto :fail
-python smoke_app.py dist\BeatSmith\BeatSmith.exe || goto :fail
+python smoke_app.py dist\BeatSmith\BeatSmith.exe --full || goto :fail
 
 rem ---- installers ---------------------------------------------------------
 python harvest.py dist\BeatSmith files.wxs || goto :fail

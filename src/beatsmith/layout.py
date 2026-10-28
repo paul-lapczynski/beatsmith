@@ -15,6 +15,8 @@ their files too, and migrate() moves such a song to this layout.
 """
 from __future__ import annotations
 
+from beatsmith.resources import source_root
+
 import hashlib
 import os
 import re
@@ -101,7 +103,7 @@ def songs_data() -> Path:
     both)."""
     if getattr(sys, "frozen", False) or os.environ.get("BEATSMITH_DATA"):
         return data_dir() / "songs"
-    return Path(__file__).resolve().parent / "song-data"
+    return source_root() / "song-data"
 
 
 def work_root(out: Path) -> Path:

@@ -3,11 +3,12 @@
 [Home](../README.md) · [App guide](APP_GUIDE.md)
 
 **Recommendation:** organize documentation and development-only material
-first. Move runtime code only through separate, tested changes. This is a
-proposal, not authorization to move files or change the released app.
+first. Move runtime code only through separate, tested changes. Paul subsequently approved the staged implementation. The
+[current layout](REPOSITORY_LAYOUT.md) records the implemented organization.
 
-The current documentation PR does not move runtime modules, models,
-profiles, installer scripts or user data. No folder layout can guarantee
+The documentation PR does not move runtime files. A separate cleanup PR
+groups canonical code, workers, tools, tests and benchmarks; it preserves
+root command launchers and existing model/profile/user-data locations. No folder layout can guarantee
 compatibility by itself; the checkpoints below are the release gates.
 
 ## What is actually mixed together

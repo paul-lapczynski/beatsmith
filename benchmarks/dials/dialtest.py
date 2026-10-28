@@ -8,7 +8,7 @@
     python dialtest.py find-preset CHART.sm [--song SONG.ogg] [--name my-style]
 
 With no songs, `run` uses the songs listed in SONGS below. Runs on the CPU
-only. Results go to dialtest/results/ and a run picks up where it stopped.
+only. Results go to benchmarks/dials/results/ and a run picks up where it stopped.
 See TESTPLAN.md for the design.
 """
 from __future__ import annotations
@@ -61,7 +61,7 @@ def _song(name):
 
 
 def run_group(g: plan.Group) -> list[dict]:
-    import ai_assist
+    from beatsmith import ai_assist
     song = _song(g.song)
     rows, ref = [], {}
     for i, (cfg, tag) in enumerate(zip(g.configs, g.tags)):

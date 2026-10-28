@@ -9,12 +9,14 @@ The audio features below must match training/model.py exactly.
 """
 from __future__ import annotations
 
+from beatsmith.resources import bundle_root
+
 import sys
 from pathlib import Path
 
 import numpy as np
 
-_BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+_BASE = bundle_root()
 MODEL = _BASE / "models" / "step_placement_v1.onnx"
 
 SR, HOP, N_MELS, FFTS, FMIN = 22050, 256, 80, (1024, 2048, 4096), 27.5
@@ -43,7 +45,7 @@ def session():
     if _session is None:
         import onnxruntime as ort
 
-        import accel
+        from beatsmith import accel
         try:
             _session = ort.InferenceSession(str(MODEL), providers=accel.onnx_providers())
         except Exception:                   # a GPU provider that won't start: the CPU always works
@@ -88,7 +90,7 @@ def ai_env(y: np.ndarray, a, meter: float) -> np.ndarray:
     like BeatSmith's other envelopes. y is the song at SR, mono. The mel is
     kept for the last song, so each difficulty only runs the model."""
     global _mel_cache
-    from stepgen import _norm
+    from beatsmith.stepgen import _norm
     if _mel_cache is None or _mel_cache[0] is not y:
         _mel_cache = (y, log_mel(y))
     mel = _mel_cache[1]

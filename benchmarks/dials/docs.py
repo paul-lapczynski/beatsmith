@@ -70,7 +70,7 @@ def main():
         rows.append([f"[{TITLES[k]}](#{anchor(TITLES[k])})", short,
                      f"**{r['grade']}**" if r else "–"])
     w(table(["Control", "What it does", "Test grade"], rows))
-    w("\nThe grade is from the dial test ([how it's scored](../dialtest/REPORT.md#1-grades)): A means "
+    w("\nThe grade is from the dial test ([how it's scored](../benchmarks/dials/REPORT.md#1-grades)): A means "
       "it clearly moves what its label says, always in the same direction, on every song, without "
       "changing other things, and keeps working with a difficulty target on.\n")
     w("**The order things happen in:** the profile sets every value, Groove moves its settings, "
@@ -118,7 +118,7 @@ def main():
         w(f"- {line}")
     w("")
     w("## Find a preset from a chart you like\n")
-    w("`python dialtest/dialtest.py find-preset \"path/to/Song.sm\" --name my-style` reads the chart "
+    w("`python benchmarks/dials/dialtest.py find-preset \"path/to/Song.sm\" --name my-style` reads the chart "
       "(.sm, .ssc or .dwi) and its song, measures it the way the dial test measures BeatSmith's charts, "
       "then makes charts and moves one control at a time until BeatSmith's chart of that song is as "
       "close to it as the controls allow. It saves `profiles/my-style.toml` (each difficulty's "
@@ -129,14 +129,14 @@ def main():
         w(f"- {line}")
     w("")
     w("## Re-running the tests\n")
-    w("```\npython dialtest/dialtest.py run            # the whole plan, about an hour on 4 cores\n"
-      "python dialtest/dialtest.py report         # dialtest/REPORT.md\n"
-      "python dialtest/dialtest.py images         # docs/img/\n"
-      "python dialtest/dialtest.py preview        # docs/preview.html\n"
-      "python dialtest/dialtest.py docs           # this page\n```\n")
-    w("Needs `pip install -r dialtest/requirements.txt` on top of BeatSmith's own. `run` takes any songs (`dialtest.py run a.ogg b.mp3`), needs only the CPU, and resumes where "
-      "it stopped. The plan is in [dialtest/TESTPLAN.md](../dialtest/TESTPLAN.md), every number in "
-      "[dialtest/REPORT.md](../dialtest/REPORT.md).\n")
+    w("```\npython benchmarks/dials/dialtest.py run            # the whole plan, about an hour on 4 cores\n"
+      "python benchmarks/dials/dialtest.py report         # benchmarks/dials/REPORT.md\n"
+      "python benchmarks/dials/dialtest.py images         # docs/img/\n"
+      "python benchmarks/dials/dialtest.py preview        # docs/preview.html\n"
+      "python benchmarks/dials/dialtest.py docs           # this page\n```\n")
+    w("Needs `pip install -r benchmarks/dials/requirements.txt` on top of BeatSmith's own. `run` takes any songs (`dialtest.py run a.ogg b.mp3`), needs only the CPU, and resumes where "
+      "it stopped. The plan is in [benchmarks/dials/TESTPLAN.md](../benchmarks/dials/TESTPLAN.md), every number in "
+      "[benchmarks/dials/REPORT.md](../benchmarks/dials/REPORT.md).\n")
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("\n".join(L) + "\n", encoding="utf-8")
     print(f"wrote {OUT}")

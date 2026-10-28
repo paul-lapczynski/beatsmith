@@ -5,13 +5,13 @@ import sys
 import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 try:
     from PySide6.QtCore import QPoint, QPointF, Qt
     from PySide6.QtGui import QWheelEvent
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication, QComboBox, QDoubleSpinBox, QScrollArea, QSlider, QSpinBox, QVBoxLayout, QWidget
-    from form_controls import protect_form_wheels
+    from beatsmith.form_controls import protect_form_wheels
 except ImportError:
     QApplication = None
 

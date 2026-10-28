@@ -20,6 +20,8 @@ with neither, the picture is copied as it is and StepMania stretches it.
 """
 from __future__ import annotations
 
+from beatsmith.resources import bundle_root
+
 import base64
 import json
 import re
@@ -42,7 +44,7 @@ MIN_SIZE = 200          # smaller than this looks like mush on a 640x480 backgro
 def app_version() -> str:
     """The version built into the app (version.txt, written by the build),
     else the newest release tag of a source checkout, else "dev"."""
-    here = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    here = bundle_root()
     try:
         return (here / "version.txt").read_text().strip() or "dev"
     except OSError:

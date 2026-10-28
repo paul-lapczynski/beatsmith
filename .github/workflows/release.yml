@@ -17,7 +17,7 @@ on:
       - "!**/*.md"
       - "!**/*.png"
       - "!docs/**"
-      - "!dialtest/**"
+      - "!benchmarks/**"
       - "!training/**"
       - "!reviews/**"
       - "!branding/**"
@@ -36,7 +36,7 @@ on:
       - "!**/*.md"
       - "!**/*.png"
       - "!docs/**"
-      - "!dialtest/**"
+      - "!benchmarks/**"
       - "!training/**"
       - "!reviews/**"
       - "!branding/**"
@@ -87,7 +87,7 @@ jobs:
           echo "BEATSMITH_VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Check installer versions
-        run: python -m unittest discover -s packaging -p "test_*.py"
+        run: python -m unittest discover -s tests -p "test_*.py"
 
       - name: Build
         shell: cmd
@@ -95,11 +95,11 @@ jobs:
 
       - name: Test installed MSI and legacy EXE guard
         shell: pwsh
-        run: ./packaging/test_msi.ps1 -MsiPath "packaging/dist/BeatSmith-$($env:BEATSMITH_VERSION).msi"
+        run: ./tests/installers/test_msi.ps1 -MsiPath "packaging/dist/BeatSmith-$($env:BEATSMITH_VERSION).msi"
 
       - name: Test EXE update and add-on uninstall
         shell: pwsh
-        run: ./packaging/test_exe.ps1 -ExePath "packaging/dist/BeatSmith-setup-$($env:BEATSMITH_VERSION).exe"
+        run: ./tests/installers/test_exe.ps1 -ExePath "packaging/dist/BeatSmith-setup-$($env:BEATSMITH_VERSION).exe"
 
       - name: Keep the build
         uses: actions/upload-artifact@v4
@@ -126,7 +126,7 @@ jobs:
           echo "BEATSMITH_VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Check installer versions
-        run: python -m unittest discover -s packaging -p "test_*.py"
+        run: python -m unittest discover -s tests -p "test_*.py"
 
       - name: Build
         env:

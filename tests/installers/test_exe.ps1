@@ -15,7 +15,7 @@ try {
     Assert-AddonsKept
     Invoke-Setup
     Assert-AddonsKept
-    python "$PSScriptRoot/smoke_app.py" (Join-Path $installed 'BeatSmith.exe')
+    python "$PSScriptRoot/../../packaging/smoke_app.py" (Join-Path $installed 'BeatSmith.exe')
     if ($LASTEXITCODE -ne 0) { throw 'EXE-installed app failed startup.' }
     Write-Host 'PASS: EXE installation/update preserves downloaded add-ons'
     $p = Start-Process -FilePath (Join-Path $installed 'unins000.exe') -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') -WindowStyle Hidden -Wait -PassThru

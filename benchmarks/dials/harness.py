@@ -1,7 +1,7 @@
 """Make charts the way stepgen.generate() does, without writing any files,
 so thousands of settings can be tried quickly.
 
-A song is analysed once and cached (dialtest/cache/<name>.pkl); after that a
+A song is analysed once and cached (benchmarks/dials/cache/<name>.pkl); after that a
 chart takes well under a second. The per-chart loop below mirrors the one in
 stepgen.generate() (follow, AI assist, target, groove tries): if that loop
 changes, change this one too.
@@ -21,8 +21,9 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
-STEPGEN_DIR = HERE.parent
+STEPGEN_DIR = HERE.parents[1]
 sys.path.insert(0, str(STEPGEN_DIR))
+sys.path.insert(0, str(STEPGEN_DIR / "src"))
 import stepgen  # noqa: E402
 
 import os
@@ -54,7 +55,7 @@ class Song:
     _ai: dict = field(default_factory=dict)
 
     def ai_env(self, meter: float) -> np.ndarray | None:
-        import ai_assist
+        from beatsmith import ai_assist
         if not ai_assist.available():
             return None
         key = round(meter, 1)
@@ -171,7 +172,7 @@ def make_charts(song: Song, cfg: Config, diffs=DIFFS) -> list[Chart]:
             fol = stepgen.follow_for(a, [dict(s) for s in song.sections], spec, None)
             ac = stepgen.with_follow(a, fol)
             if spec.ai_assist > 0:
-                import ai_assist
+                from beatsmith import ai_assist
                 env = song.ai_env(ai_assist.meter_for(spec))
                 ac = stepgen.with_ai(ac, env, spec.ai_assist)
             if spec.target_meter > 0:

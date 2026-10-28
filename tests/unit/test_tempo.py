@@ -2,8 +2,8 @@ from pathlib import Path
 import sys
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from tempo import validate_bpm
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from beatsmith.tempo import validate_bpm
 
 
 class TempoTests(unittest.TestCase):
