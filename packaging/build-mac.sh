@@ -14,6 +14,7 @@ python -m pip install --upgrade pip >/dev/null
 python -m pip install -r ../requirements.txt -r ../requirements-app.txt pyinstaller
 
 pyinstaller --noconfirm --clean --distpath dist --workpath build beatsmith.spec
+python smoke_app.py dist/BeatSmith.app/Contents/MacOS/BeatSmith
 
 rm -rf dmg && mkdir dmg
 cp -R dist/BeatSmith.app dmg/

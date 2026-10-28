@@ -18,6 +18,18 @@ ffmpeg are all inside it. It installs to Program Files with a Start menu and
 desktop shortcut, shows up in Apps & features for uninstalling, and
 installing a newer version replaces the old one.
 
+Use the same installer type when upgrading. The MSI cannot upgrade a copy
+installed by setup.exe; it blocks that combination and asks you to remove
+the setup.exe copy first. If both appear in Settings > Apps, uninstall both
+BeatSmith entries, then install one current copy. Songs, settings and add-ons
+are kept. Overlapping installers can leave incompatible Python files in the
+same application folder.
+
+Each build starts the frozen app's command-line entry point before making
+installers. Windows CI also checks that the compiled MSI blocks existing
+setup.exe registrations, then installs the MSI into a temporary location and
+checks startup there. These checks do not run the app's normal settings flow.
+
 Set `BEATSMITH_VERSION=0.0.2` before running the build to change the version
 number (an MSI only upgrades when the number goes up). Otherwise the build reads
 the root `version.txt`. Release tags must agree with that file. See
