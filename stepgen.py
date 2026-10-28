@@ -37,6 +37,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # chartstats.py
 from layout import file_name, migrate, song_dirs
+from tempo import validate_bpm
 import librosa
 import soundfile as sf
 
@@ -234,6 +235,7 @@ STEP_MIX = {"kick": 0.4, "snare": 0.3, "lead": 0.3, "hats": 0.05}
 
 
 def analyze(path: Path, bpm_override: float | None = None, stems: Path | None = None) -> Analysis:
+    bpm_override = validate_bpm(bpm_override)
     y = load_audio(path)
     duration = len(y) / SR
     y_h, y_p = librosa.effects.hpss(y)
@@ -2581,6 +2583,7 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
              shorten: float = 0.0, keep_verses: bool = False, lyrics: bool = False,
              art: bool = True, art_online: bool = False, art_image: Path | None = None,
              art_from: str | None = None) -> Path:
+    bpm = validate_bpm(bpm)
     title = title or src.stem
     name = file_name(title, artist)    # plain ASCII for the folder and files; the .sm keeps `title`
     # the StepMania song folder holds only the chart, the song and its

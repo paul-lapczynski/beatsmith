@@ -28,14 +28,16 @@ wix extension add -g WixToolset.UI.wixext/5.0.2 >nul || goto :fail
 
 rem ---- the app ------------------------------------------------------------
 if not exist .venv (
-  py -3 -m venv .venv || goto :fail
+  py -3.12 -m venv .venv || goto :fail
 )
 call .venv\Scripts\activate.bat
+python -c "import sys; assert sys.version_info[:2] == (3, 12), 'Recreate packaging/.venv with Python 3.12 before building'" || goto :fail
 python version.py > version-build.tmp || goto :fail
 set /p BEATSMITH_VERSION=<version-build.tmp
 del version-build.tmp
 python -m pip install --upgrade pip >nul
 python -m pip install -r ..\requirements.txt -r ..\requirements-app.txt pyinstaller || goto :fail
+python -m unittest discover -s . -p test_*.py || goto :fail
 
 if not exist ffmpeg\ffmpeg.exe (
   echo Fetching ffmpeg for .wma/.m4a support...
@@ -44,6 +46,7 @@ if not exist ffmpeg\ffmpeg.exe (
 )
 
 pyinstaller --noconfirm --clean --distpath dist --workpath build beatsmith.spec || goto :fail
+python smoke_app.py dist\BeatSmith\BeatSmith.exe || goto :fail
 
 rem ---- installers ---------------------------------------------------------
 python harvest.py dist\BeatSmith files.wxs || goto :fail

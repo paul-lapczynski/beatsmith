@@ -12,8 +12,10 @@ BEATSMITH_VERSION=$(python version.py)
 export BEATSMITH_VERSION
 python -m pip install --upgrade pip >/dev/null
 python -m pip install -r ../requirements.txt -r ../requirements-app.txt pyinstaller
+python -m unittest discover -s . -p 'test_*.py'
 
 pyinstaller --noconfirm --clean --distpath dist --workpath build beatsmith.spec
+python smoke_app.py dist/BeatSmith.app/Contents/MacOS/BeatSmith
 
 rm -rf dmg && mkdir dmg
 cp -R dist/BeatSmith.app dmg/

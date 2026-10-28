@@ -91,6 +91,11 @@ MP3, OGG, WAV and FLAC load directly; anything else goes through ffmpeg.
   it was). Untick it to hide them again.
 - Settings and the output folder are remembered.
 
+Scrolling over a form control scrolls the page without changing its value,
+even when the control has focus. Click, type, use arrow keys or drag a slider
+to change a setting. BPM can be automatic or an explicit value of at least 20;
+an accidental 1 BPM override is rejected before generating files.
+
 ### Edit tab (chart editor, early version)
 
 Pick a finished song and press **Edit chart**, or open any `.sm` with

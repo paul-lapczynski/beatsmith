@@ -1760,6 +1760,13 @@ class Window(QMainWindow):
         if not todo:
             self.statusBar().showMessage("Nothing to do: add songs, or they're all done.")
             return
+        from tempo import validate_bpm
+        for job in todo:
+            try:
+                validate_bpm(job.bpm or job.settings.get("bpm"))
+            except ValueError as error:
+                QMessageBox.warning(self, "Check BPM", f"{job.title}: {error}")
+                return
         out.mkdir(parents=True, exist_ok=True)
         self.out = out
         for j in todo:
@@ -2033,6 +2040,8 @@ def move_old_settings():
 
 def main():
     app = QApplication(sys.argv)
+    from form_controls import protect_form_wheels
+    protect_form_wheels(app)
     app.setApplicationName(APP_NAME)
     app.setOrganizationName(APP_NAME)
     move_old_settings()

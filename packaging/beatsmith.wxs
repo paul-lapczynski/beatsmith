@@ -22,9 +22,10 @@
 
     <ComponentGroupRef Id="AppFiles" />
 
-    <!-- stepgen, the old name: its MSI (same UpgradeCode) goes on its own with
-         the MajorUpgrade, so the installer just says so; its setup.exe install
-         has to be uninstalled first -->
+    <!-- MSI cannot upgrade an Inno installation, even when both are called
+         BeatSmith. Installing over it mixes independently versioned Python
+         DLLs/extensions. Block both registry views and allow uninstalling an
+         already-mixed MSI so users can recover. -->
     <Property Id="OLDSTEPGEN">
       <RegistrySearch Root="HKLM" Key="Software\stepgen" Name="startmenu" Type="raw" Bitness="always64" />
     </Property>
@@ -32,10 +33,16 @@
       <RegistrySearch Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}_is1" Name="DisplayName" Type="raw" Bitness="always64" />
     </Property>
     <Property Id="STEPGENEXEUSER">
-      <RegistrySearch Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}_is1" Name="DisplayName" Type="raw" />
+      <RegistrySearch Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}_is1" Name="DisplayName" Type="raw" Bitness="always64" />
     </Property>
-    <Launch Condition="Installed OR (STEPGENEXE &lt;&gt; &quot;stepgen&quot; AND STEPGENEXEUSER &lt;&gt; &quot;stepgen&quot;)"
-            Message="Looks like you have stepgen, the old version of BeatSmith. It has to be removed before BeatSmith can be installed: go to Settings &gt; Apps, uninstall stepgen, then run this installer again. Your songs, settings and add-ons are kept." />
+    <Property Id="STEPGENEXE32">
+      <RegistrySearch Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}_is1" Name="DisplayName" Type="raw" Bitness="always32" />
+    </Property>
+    <Property Id="STEPGENEXEUSER32">
+      <RegistrySearch Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}_is1" Name="DisplayName" Type="raw" Bitness="always32" />
+    </Property>
+    <Launch Condition="REMOVE = &quot;ALL&quot; OR (NOT STEPGENEXE AND NOT STEPGENEXEUSER AND NOT STEPGENEXE32 AND NOT STEPGENEXEUSER32)"
+            Message="An earlier setup.exe installation of BeatSmith or stepgen must be uninstalled first. In Settings &gt; Apps, remove that copy, then run this installer again. Your songs, settings and add-ons are kept." />
 
     <!-- "Clean install": the app forgets the settings and saved profiles of
          earlier versions the first time it starts (beatsmith_app.clean_install).
