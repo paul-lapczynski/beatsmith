@@ -8,6 +8,18 @@ datas = [(root + "/patterns.toml", "."), (root + "/profiles", "profiles"),
          (root + "/workers/stems.py", "."), (root + "/workers/lyrics.py", "."),     # run by the optional add-ons' own Python
          (root + "/src/beatsmith/accel.py", ".")]
 datas += [(root + "/models", "models")]                          # AI assist model
+# Help opens a local README: ship its guides and images too, without bundling
+# developer scripts, bytecode caches or temporary screenshot-generation files.
+from pathlib import Path
+datas += [(root + "/AI_USAGE.md", "."), (root + "/LICENSE", "."),
+          (root + "/branding/beatsmith-mark-512.png", "branding")]
+for name in ("APP_GUIDE.md", "COMMAND_LINE.md", "DIALS.md", "REPOSITORY_PLAN.md", "REPOSITORY_LAYOUT.md"):
+    datas.append((root + "/docs/" + name, "docs"))
+for image in (Path(root) / "docs/img").rglob("*"):
+    if image.is_file() and image.suffix.lower() in (".png", ".svg", ".jpg", ".jpeg"):
+        datas.append((str(image), str(image.parent.relative_to(Path(root)))))
+for name in ("BUILD.md", "RELEASING.md"):
+    datas.append((root + "/packaging/" + name, "packaging"))
 # the app's version, for what it tells web services about itself (artwork.py's User-Agent)
 import os
 import runpy

@@ -68,3 +68,6 @@ Models, profiles, default patterns, installer build entry points and version
 files stay where earlier builds and integrations expect them. Consolidating
 those resources is an optional later stage, not required to use this layout.
 No feature from the rejected lead-instrument experiment is included.
+
+The frozen app also ships the README, guides, AI disclosure and screenshot
+assets used by Help, without developer scripts or temporary capture files.

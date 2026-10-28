@@ -40,6 +40,9 @@ def full_check(executable: Path) -> None:
         payload = next((p for p in roots if (p / 'stems.py').is_file()), None)
         if payload is None or not (payload / 'models/step_placement_v1.onnx').is_file():
             raise RuntimeError('Frozen payload is missing worker scripts or bundled model')
+        for resource in ('AI_USAGE.md', 'docs/APP_GUIDE.md', 'docs/img/screenshots/editor.png'):
+            if not (payload / resource).is_file():
+                raise RuntimeError(f'Frozen Help documentation is missing: {resource}')
         for worker, expected in (('stems.py', 'Split a song'), ('lyrics.py', 'Read the words')):
             p = subprocess.run([sys.executable, '-I', str(payload / worker)], env=env,
                                capture_output=True, text=True, timeout=45)
