@@ -146,7 +146,11 @@ Each chart can be aimed at a number. BeatSmith makes the chart, rates it, and tu
 
 ## Arrows follow (melody)
 
-Sets melody_follow. Choruses get the full amount, verses and bridges 60%, intros, outros and builds 30%.
+Sets melody_follow. With **Singing** (the default), choruses get the full amount, verses and bridges 60%, intros, outros and builds 30%; sections without singing are reduced further.
+
+**Follow source > Lead instrument** uses the slider directly in every section and follows detected attacks in the separated instrument stem. Manual per-section settings still win. At 75% follow or more it only steps near those detected attacks; lower values blend them with the beat. This follows instrumental rhythm, not pitch. Sparse passages may finish below the requested difficulty. The stats trace selected phrase starts through difficulty, breathing, repetition and safety checks. When backoff cuts easier charts from Hard, those charts share Hard's source and rhythm.
+
+The measurements below describe the original Singing mode; they are not grades for the new Lead instrument mode.
 
 ![Arrows follow (melody) at different settings](img/follow.svg)
 

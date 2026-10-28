@@ -96,6 +96,34 @@ even when the control has focus. Click, type, use arrow keys or drag a slider
 to change a setting. BPM can be automatic or an explicit value of at least 20;
 an accidental 1 BPM override is rejected before generating files.
 
+### Singing or lead instrument
+
+Enable **Melody analysis**, then choose **Follow source**:
+
+- **Singing** is the existing default. Automatic section weights and the
+  amount of singing still control how strongly it follows.
+- **Lead instrument** follows clear attack timing in the separated piano,
+  guitar and synth material. It uses the follow slider directly in every
+  section; manual per-section values still win. It follows instrumental
+  rhythm, not musical pitches or a note-for-note transcription. Chords and
+  percussion bleed can still be present in that stem.
+
+At high follow (75% or more), a step must be near a detected instrument
+attack. Quiet passages can have fewer steps, and some requested difficulty
+numbers cannot be reached. Lower follow blends instrument attacks with the
+beat. The same footwork and difficulty limits still apply. Selected phrase
+starts are favored through the later passes; the stats and saved settings
+report where limits or safety checks remove them. Detector alignment is not
+an independent musical accuracy score.
+
+When easier charts are cut from Hard, they share Hard's source and rhythm,
+with their own difficulty limits. Normal independent charts use each
+chart's own follow settings. Existing saved settings default to Singing.
+
+Command line: `--stems --melody-source lead --set Hard.melody_follow=1`.
+Lead instrument requires the existing separation add-on; it does not
+silently fall back to following the whole mix when stems are unavailable.
+
 ### Edit tab (chart editor, early version)
 
 Pick a finished song and press **Edit chart**, or open any `.sm` with

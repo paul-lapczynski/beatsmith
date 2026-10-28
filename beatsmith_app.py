@@ -607,9 +607,9 @@ class Window(QMainWindow):
         # one opt-in: it separates the vocals (a download the first time), and
         # everything below it reads the separated vocals
         import addons
-        self.stems_box = QCheckBox("Enable melody analysis (separates the vocals)")
-        self.stems_box.setToolTip("So the arrows can follow the singing; about a minute per song. Uses Demucs to split each song into vocals, drums, bass and the rest. "
-                                  "Arrows follow and AI verse detection work from the vocals. Kept in a "
+        self.stems_box = QCheckBox("Enable melody analysis (singing or lead instrument)")
+        self.stems_box.setToolTip("So the arrows can follow singing or instrumental rhythm. Uses Demucs to split each song into vocals, drums, bass and the rest. "
+                                  "AI verse detection reads the vocals. Kept in a "
                                   ".stems folder per song. The first time, it offers the download "
                                   f"({addons.SIZES['stems']}) and shows where every part comes from.")
         self.stems_btn = QPushButton(f"Download melody analysis ({addons.SIZES['stems']})…")
@@ -617,6 +617,15 @@ class Window(QMainWindow):
         self.stems_box.toggled.connect(self._melody_toggled)
         gl.addWidget(self.stems_box, 0, 0, 1, 3)
         gl.addWidget(self.stems_btn, 0, 3)
+        self.melody_source = QComboBox()
+        self.melody_source.addItem("Singing", "singing")
+        self.melody_source.addItem("Lead instrument", "lead")
+        self.melody_source.setToolTip("Lead instrument follows clear attacks in the separated piano/guitar/synth stem. "
+                                      "It follows rhythm, not musical pitches. High follow may leave fewer steps where that stem is quiet.")
+        source_label = QLabel("Follow source")
+        gl.addWidget(source_label, 1, 0, 1, 2)
+        gl.addWidget(self.melody_source, 1, 2, 1, 2)
+        self.melody_source.currentIndexChanged.connect(self._follow_auto)
         self.follow = QSlider(Qt.Horizontal, minimum=0, maximum=100, value=0)
         self.follow.setTickInterval(25)
         self.follow.setTickPosition(QSlider.TicksBelow)
@@ -626,16 +635,17 @@ class Window(QMainWindow):
                                "of section takes its share of this; open \"Per section\" to see or "
                                "change it.")
         self.melody_widgets = [QLabel("<b>Arrows follow</b>"), QLabel("the beat"), self.follow, QLabel("the tune")]
-        gl.addWidget(self.melody_widgets[0], 1, 0)
-        gl.addWidget(self.melody_widgets[1], 1, 1, alignment=Qt.AlignRight)
-        gl.addWidget(self.follow, 1, 2)
-        gl.addWidget(self.melody_widgets[3], 1, 3)
+        gl.addWidget(self.melody_widgets[0], 2, 0)
+        gl.addWidget(self.melody_widgets[1], 2, 1, alignment=Qt.AlignRight)
+        gl.addWidget(self.follow, 2, 2)
+        gl.addWidget(self.melody_widgets[3], 2, 3)
+        self.melody_widgets += [source_label, self.melody_source]
         # per kind of section: follows the main slider (scaled) until moved by hand
         self.sec_toggle = QPushButton("Per section ▸")
         self.sec_toggle.setFlat(True)
         self.sec_toggle.setStyleSheet("text-align: left;")
         self.sec_toggle.setCheckable(True)
-        gl.addWidget(self.sec_toggle, 2, 0, 1, 2, alignment=Qt.AlignLeft)
+        gl.addWidget(self.sec_toggle, 3, 0, 1, 2, alignment=Qt.AlignLeft)
         self.melody_widgets.append(self.sec_toggle)
         self.sec_box = QWidget()
         sg = QGridLayout(self.sec_box)
@@ -663,7 +673,7 @@ class Window(QMainWindow):
         self.sec_box.setVisible(False)
         self.sec_toggle.toggled.connect(lambda on: (self.sec_box.setVisible(on),
                                                      self.sec_toggle.setText("Per section " + ("▾" if on else "▸"))))
-        gl.addWidget(self.sec_box, 3, 0, 1, 4)
+        gl.addWidget(self.sec_box, 4, 0, 1, 4)
         self.melody_widgets.append(self.sec_box)
         self._follow_auto()
         self.lyrics_box = QCheckBox("Use AI verse detection (reads the lyrics)")
@@ -676,8 +686,13 @@ class Window(QMainWindow):
         self.lyrics_btn = QPushButton(f"Download AI verse detection ({addons.SIZES['lyrics']})…")
         self.lyrics_btn.clicked.connect(lambda: self.install_addon("lyrics"))
         self.lyrics_box.toggled.connect(self._melody_state)
-        gl.addWidget(self.lyrics_box, 4, 0, 1, 3)
-        gl.addWidget(self.lyrics_btn, 4, 3)
+        gl.addWidget(self.lyrics_box, 5, 0, 1, 3)
+        gl.addWidget(self.lyrics_btn, 5, 3)
+        reduction_note = QLabel("When easier charts are cut from Hard, they share Hard's source and rhythm; their own difficulty limits still apply.")
+        reduction_note.setWordWrap(True)
+        reduction_note.setVisible(self.backoff.isChecked())
+        self.backoff.toggled.connect(reduction_note.setVisible)
+        gl.addWidget(reduction_note, 6, 0, 1, 4)
         self._stems_ready()
         ai = QGroupBox("AI assist (trained on hand-made charts, try it out)")
         gl = QGridLayout(ai)
@@ -719,7 +734,8 @@ class Window(QMainWindow):
             manual = kind in self.sec_manual
             if not manual:
                 sl.blockSignals(True)
-                sl.setValue(round(self.follow.value() * stepgen.FOLLOW_BY_LABEL[kind]))
+                scale = 1.0 if self.melody_source.currentData() == "lead" else stepgen.FOLLOW_BY_LABEL[kind]
+                sl.setValue(round(self.follow.value() * scale))
                 sl.blockSignals(False)
             val.setText(f"{sl.value()}%" + ("  (set by you)" if manual else "  (automatic)"))
             f = name.font()
@@ -1083,6 +1099,7 @@ class Window(QMainWindow):
                 "ai": self.ai.value(),
                 "sections": {k: self.sec_sliders[k][0].value() for k in sorted(self.sec_manual)},
                 "stems": self.stems_box.isChecked(),
+                "melody_source": self.melody_source.currentData(),
                 "lyrics": self.lyrics_box.isChecked(),
                 "backoff": self.backoff.isChecked(),
                 "overrides": dict(self.overrides)}
@@ -1107,6 +1124,7 @@ class Window(QMainWindow):
                     self.sliders[k].setValue(int(v))
             self.groove.setValue(old_groove(d))
             self.follow.setValue(int(d.get("follow", 0)))
+            self.melody_source.setCurrentIndex(max(0, self.melody_source.findData(d.get("melody_source", "singing"))))
             self.ai.setValue(int(d.get("ai", 0)) if usable(self.ai) else 0)
             self.sec_manual = set(d.get("sections", {}))
             for k, (sl, *_) in self.sec_sliders.items():
@@ -1139,7 +1157,7 @@ class Window(QMainWindow):
         if d.get("ai"):
             parts.append(f"AI {d['ai']}%")
         if d.get("stems"):
-            parts.append("melody")
+            parts.append("lead rhythm" if d.get("melody_source") == "lead" else "melody")
         if d.get("lyrics"):
             parts.append("AI verses")
         if d.get("backoff"):
@@ -1180,6 +1198,7 @@ class Window(QMainWindow):
             args += ["--easy", f"groove={groove_easy(old_groove(d)):g}"]
         if d.get("stems"):
             args.append("--stems")
+            args += ["--melody-source", d.get("melody_source", "singing")]
         if d.get("lyrics") and d.get("stems"):
             args.append("--lyrics")
         if d.get("backoff"):
@@ -1209,6 +1228,7 @@ class Window(QMainWindow):
         for s in list(self.sliders.values()) + [self.groove, self.follow, self.ai] + [v[0] for v in self.sec_sliders.values()]:
             s.valueChanged.connect(self._panel_changed)
         self.stems_box.toggled.connect(self._panel_changed)
+        self.melody_source.currentIndexChanged.connect(self._panel_changed)
         self.lyrics_box.toggled.connect(self._panel_changed)
         self.backoff.toggled.connect(self._panel_changed)
 
@@ -1297,6 +1317,7 @@ class Window(QMainWindow):
             s.setValue(int(st.value(f"slider/{k}", 50)))
         self.groove.setValue(int(st.value("groove", max(0, 2 * (int(st.value("slider/groove", 50)) - 50)))))
         self.follow.setValue(int(st.value("follow", 0)))
+        self.melody_source.setCurrentIndex(max(0, self.melody_source.findData(st.value("melody_source", "singing"))))
         if usable(self.ai):
             self.ai.setValue(int(st.value("ai", 0)))
         manual = json.loads(st.value("follow_sections_v2", "{}"))
@@ -1340,6 +1361,7 @@ class Window(QMainWindow):
             st.setValue(f"slider/{k}", s.value())
         st.setValue("groove", self.groove.value())
         st.setValue("follow", self.follow.value())
+        st.setValue("melody_source", self.melody_source.currentData())
         st.setValue("ai", self.ai.value())
         st.setValue("follow_sections_v2", json.dumps({k: self.sec_sliders[k][0].value() for k in self.sec_manual}))
         st.setValue("stems", "true" if self.stems_box.isChecked() else "false")
@@ -1995,6 +2017,8 @@ def used_settings(sm: Path) -> str:
         lines.append(f"- Follow the melody: {round(float(follow or 0) * 100)}%"
                      + "".join(f", {k} {round(float(v) * 100)}%" for k, v in d.get("follow", {}).items())
                      + (" (vocals separated)" if d.get("stems") else ""))
+        if d.get("melody_source") == "lead":
+            lines.append("- Source: Lead instrument (attack rhythm, not pitch transcription)")
     if ai or d.get("ai_assist"):
         lines.append(f"- AI assist: {round(float(ai or 0) * 100)}%"
                      + (f" ({d['ai_model']})" if d.get("ai_model") else ""))

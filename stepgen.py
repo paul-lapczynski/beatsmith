@@ -29,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+import weakref
 from dataclasses import dataclass, field
 from fractions import Fraction
 from pathlib import Path
@@ -40,6 +41,7 @@ from layout import file_name, migrate, song_dirs
 from tempo import validate_bpm
 import librosa
 import soundfile as sf
+import lead as lead_rhythm
 
 SR = 22050
 HOP = 256                      # ~11.6 ms frames, fine enough for 16ths
@@ -81,6 +83,8 @@ class Analysis:
     follow: np.ndarray | None = None    # per-measure 0..1: beat (0) or melody (1), set per chart
     stems: bool = False
     ai: float = 0.0                     # how much of step_env is the AI model's, set per chart
+    melody_source: str = "singing"
+    lead_attacks: np.ndarray | None = None
 
     @property
     def hits(self) -> np.ndarray:
@@ -234,7 +238,12 @@ def refine_bpm(env: np.ndarray, beat_times: np.ndarray, bpm0: float,
 STEP_MIX = {"kick": 0.4, "snare": 0.3, "lead": 0.3, "hats": 0.05}
 
 
-def analyze(path: Path, bpm_override: float | None = None, stems: Path | None = None) -> Analysis:
+def analyze(path: Path, bpm_override: float | None = None, stems: Path | None = None,
+            melody_source: str = "singing") -> Analysis:
+    if melody_source not in ("singing", "lead"):
+        raise ValueError("Melody source must be singing or lead")
+    if melody_source == "lead" and stems is None:
+        raise ValueError("Lead instrument needs separated stems; enable melody analysis first")
     bpm_override = validate_bpm(bpm_override)
     y = load_audio(path)
     duration = len(y) / SR
@@ -268,7 +277,7 @@ def analyze(path: Path, bpm_override: float | None = None, stems: Path | None = 
     drums_only = _norm(0.55 * _norm(low) + 0.4 * _norm(snare) + 0.05 * _norm(hats))
     melody, mel_cent, voc_frames = _norm(lead), cent, None
     if stems is not None:
-        melody, mel_cent, voc_frames = _stem_melody(stems, n)
+        melody, mel_cent, voc_frames = _stem_melody(stems, n, melody_source)
 
     # where the music actually plays (trim leading/trailing silence)
     loud = rms > 0.05 * np.percentile(rms, 95)
@@ -373,10 +382,12 @@ def analyze(path: Path, bpm_override: float | None = None, stems: Path | None = 
                     mel=librosa.power_to_db(S[:, :n]) + 80, music_start=music_start,
                     music_end=music_end, beat_confidence=conf, bar_feats=Z,
                     intensity=inten, section_start=peaks, step_env=step, beat_env=drums_only,
-                    melody_env=melody, melody_cent=mel_cent, vocals=vocals, stems=stems is not None)
+                    melody_env=melody, melody_cent=mel_cent, vocals=vocals, stems=stems is not None,
+                    melody_source=melody_source,
+                    lead_attacks=lead_rhythm.attack_times(melody, SR, HOP) if melody_source == "lead" else None)
 
 
-def _stem_melody(stems: Path, n: int):
+def _stem_melody(stems: Path, n: int, melody_source: str = "singing"):
     """Melody from separated stems: vocal note starts while someone is
     singing, plus the lead line in the 'other' stem (synths, guitar) at a bit
     less weight. Returns (melody onsets, melody brightness, singing 0..1)."""
@@ -398,6 +409,17 @@ def _stem_melody(stems: Path, n: int):
     melody = _norm(np.maximum(_norm(v_on) * sing, 0.6 * _norm(o_on) * (1 - 0.5 * sing)))
     c_v = fit(librosa.feature.spectral_centroid(y=voc, sr=SR, hop_length=HOP)[0])
     c_o = fit(librosa.feature.spectral_centroid(y=oth, sr=SR, hop_length=HOP)[0])
+    if melody_source == "lead":
+        # Reject near-silent stem frames before normalization can amplify bleed.
+        o_rms = fit(librosa.feature.rms(y=oth, hop_length=HOP)[0])
+        o_on[o_rms < max(1e-5, float(np.max(o_rms)) * 0.015)] = 0
+        # A note's release can produce positive spectral flux too. It is not
+        # another attack when the stem's energy is falling sharply around it.
+        padded = np.pad(o_rms, (4, 4), mode="edge")
+        before = sum(padded[4 - k:4 - k + n] for k in (1, 2, 3)) / 3
+        after = sum(padded[4 + k:4 + k + n] for k in (1, 2, 3)) / 3
+        o_on[after < 0.7 * before] = 0
+        return _norm(o_on), c_o, sing
     cent = np.where(sing > 0.3, c_v, c_o)
     return melody, cent, sing
 
@@ -609,6 +631,7 @@ class Note:
     panels: list[int] = field(default_factory=list)
     hold_rows: int = 0         # >0 makes this a freeze arrow
     stomp: bool = False        # a jump on a big beat, set by breathe()
+    phrase_start: bool = False # selected lead attack, preserved where difficulty/safety allow
 
 
 def phrase_of(a: Analysis, m: int) -> int:
@@ -763,8 +786,8 @@ def follow_for(a: Analysis, sections: list[dict], spec: DiffSpec,
     f = np.zeros(len(a.intensity))
     overrides = {(k.upper() if len(k) == 1 else k.lower()): v for k, v in (overrides or {}).items()}
     for i, sec in enumerate(sections):
-        v = spec.melody_follow * FOLLOW_BY_LABEL.get(sec["label"], 0.5)
-        if sec["vocals"] is not None:
+        v = spec.melody_follow * (1.0 if a.melody_source == "lead" else FOLLOW_BY_LABEL.get(sec["label"], 0.5))
+        if a.melody_source != "lead" and sec["vocals"] is not None:
             v *= 0.4 + 0.6 * min(1.0, sec["vocals"] / 0.4)
         for key in ("all", sec["label"], sec["letter"], str(i + 1)):
             if key in overrides:
@@ -852,7 +875,7 @@ def cap_eighths(notes: list[Note], spec: DiffSpec) -> list[Note]:
     extra = n8 - keep
     if extra <= 0 or share >= 1:
         return notes
-    drop = set(map(id, sorted(off, key=lambda n: n.strength + n.kick)[:extra]))
+    drop = set(map(id, sorted(off, key=lambda n: (n.phrase_start, n.strength + n.kick))[:extra]))
     return [n for n in notes if id(n) not in drop]
 
 
@@ -1035,8 +1058,9 @@ def place_notes(a: Analysis, spec: DiffSpec, rng: random.Random) -> list[Note]:
             out.append(r)
         rows = out
 
-    return [Note(row=r, time=taken[r][2], strength=taken[r][3],
-                 kick=a.peak(a.low_env, taken[r][2])) for r in rows]
+    notes = [Note(row=r, time=taken[r][2], strength=taken[r][3],
+                  kick=a.peak(a.low_env, taken[r][2])) for r in rows]
+    return lead_rhythm.place(a, spec, notes, Note) if a.melody_source == "lead" and a.follow is not None and a.follow.any() else notes
 
 
 # share of steps on 16ths in official Konami charts by difficulty (about the
@@ -1062,7 +1086,7 @@ def limit_sixteenths(a: Analysis, notes: list[Note], spec: DiffSpec) -> list[Not
     drop = set()
     n8 = sum(n.row % ROWS_PER_BEAT == 2 for n in notes)
     max8 = eighths_cap(spec, len(notes))
-    for n in sorted(odd, key=lambda n: n.strength)[:len(odd) - allowed]:
+    for n in sorted(odd, key=lambda n: (n.phrase_start, n.strength))[:len(odd) - allowed]:
         if n.hold_rows:
             continue
         free = [r for r in (n.row - 1, n.row + 1) if r not in taken and r - 1 not in taken - {n.row}
@@ -1114,7 +1138,8 @@ def settle_rhythm(a: Analysis, notes: list[Note], spec: DiffSpec, rng: random.Ra
         if float(Z[m] @ Z[k]) < alike:
             continue                                  # the music changed: so may the steps
         cur, ref = bars[m], set(bars[k])
-        extra = [s for s in cur if s not in ref and not cur[s].hold_rows and m * 16 + s not in held]
+        extra = [s for s in cur if s not in ref and not cur[s].hold_rows and not cur[s].phrase_start
+                 and m * 16 + s not in held]
         missing = [s for s in ref if s not in cur and m * 16 + s not in held]
         for s in sorted(missing, key=lambda s: -a.peak(a.hits, a.t0 + (m * 16 + s) * row_dt)):
             if not extra:
@@ -1122,6 +1147,8 @@ def settle_rhythm(a: Analysis, notes: list[Note], spec: DiffSpec, rng: random.Ra
             src = min(extra, key=lambda e: abs(e - s))
             n = cur[src]
             t = a.t0 + (m * 16 + s) * row_dt
+            if a.melody_source == "lead" and lead_rhythm.follow_at(a, m * 16 + s) >= 0.75 and not lead_rhythm.supported(a, m * 16 + s):
+                continue
             if a.peak(a.hits, t) < 0.6 * n.strength:
                 continue                              # nothing there to step to
             extra.remove(src)
@@ -1149,7 +1176,7 @@ def breathe(a: Analysis, notes: list[Note], spec: DiffSpec, rng: random.Random) 
     level = spec.target_meter if spec.target_meter > 0 else estimate_meter(notes, a.spb)
     xs, ys = zip(*BREAK_EVERY)
     every = float(np.interp(level, xs, ys)) * 2 ** (1 - 2 * spec.run_breaks)
-    power = lambda n: n.strength + n.kick
+    power = lambda n: (n.strength + n.kick) * (4 if n.phrase_start else 1)
     on_beat = [power(n) for n in notes if n.row % ROWS_PER_BEAT == 0]
     big = float(np.percentile(on_beat, 65)) if on_beat else 1e9
     can_stomp = spec.stomps > 0 and spec.jump > 0 and level >= 5
@@ -1171,7 +1198,7 @@ def breathe(a: Analysis, notes: list[Note], spec: DiffSpec, rng: random.Random) 
         """The steps that go for a pause of `rows` after run[j], or None."""
         r0 = run[j].row
         drop = [n for n in run[j + 1:] if n.row < r0 + rows]
-        if not drop or any(n.hold_rows for n in drop) or len(drop) >= len(run) - j - 1:
+        if not drop or any(n.hold_rows or n.phrase_start for n in drop) or len(drop) >= len(run) - j - 1:
             return None
         return drop
 
@@ -1210,7 +1237,7 @@ def breathe(a: Analysis, notes: list[Note], spec: DiffSpec, rng: random.Random) 
                     first, last = seq[0].row, seq[-1].row
                     # a clean landing: nothing in the half beat before, or between
                     gone.update(id(n) for n in run if first - 2 <= n.row < last + 2 and n not in seq
-                                and not n.hold_rows)
+                                and not n.hold_rows and not n.phrase_start)
                     resume = seq[-1]
                 else:
                     best = None
@@ -1245,9 +1272,9 @@ def breathe(a: Analysis, notes: list[Note], spec: DiffSpec, rng: random.Random) 
                 # a freeze is a rest too, as long as nothing is tapped under it
                 gone.update(id(n) for n in live if hold.row < n.row <= hold.row + hold.hold_rows
                             and not n.hold_rows and not n.stomp)
-                gone.update(id(n) for n in after if n.row < hold.row and not n.stomp)
+                gone.update(id(n) for n in after if n.row < hold.row and not n.stomp and not n.phrase_start)
             else:
-                gone.update(id(n) for n in after if not n.hold_rows and not n.stomp)
+                gone.update(id(n) for n in after if not n.hold_rows and not n.stomp and not n.phrase_start)
     return [n for n in notes if id(n) not in gone]
 
 
@@ -1518,9 +1545,13 @@ def _similar(a: Analysis, t1: float, t2: float) -> float:
     band is standardized over the song first; raw spectra of any two beats
     look ~99% alike, which says nothing."""
     key = id(a)
-    if key not in _MEL_STATS:
-        _MEL_STATS[key] = (a.mel.mean(1), a.mel.std(1) + 1e-6)
-    mu, sd = _MEL_STATS[key]
+    cached = _MEL_STATS.get(key)
+    if cached is None or cached[0]() is not a:
+        # Analyses from earlier songs can be freed and their ids reused.
+        # A stale entry changes arrow choices even with an unchanged seed.
+        ref = weakref.ref(a, lambda _ref, k=key: _MEL_STATS.pop(k, None))
+        _MEL_STATS[key] = (ref, a.mel.mean(1), a.mel.std(1) + 1e-6)
+    _, mu, sd = _MEL_STATS[key]
     v1, v2 = (a.mel[:, a.frame(t1)] - mu) / sd, (a.mel[:, a.frame(t2)] - mu) / sd
     return float(v1 @ v2 / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-9))
 
@@ -1852,6 +1883,13 @@ def apply_repeats(a: Analysis, notes: list[Note], segs, spec: DiffSpec,
                         continue
                     if rng.random() < 0.5 * spec.intensity_variation * lift:
                         copied.append(Note(on.row, on.time, on.strength, on.kick))
+            if a.melody_source == "lead":
+                copied_rows = {n.row for n in copied}
+                anchors = {n.row for n in own if n.phrase_start}
+                if not anchors <= copied_rows or any(lead_rhythm.follow_at(a, n.row) >= 0.75 and not lead_rhythm.supported(a, n.row) for n in copied):
+                    continue
+                for n in copied:
+                    n.phrase_start = n.row in anchors
             bars[t + k] = sorted(copied, key=lambda n: n.row)
             locked.add(t + k)
 
@@ -2120,12 +2158,23 @@ def made_with_md(made_with: dict) -> list[str]:
     for d in order:
         r = made_with[d]
         if r.get("cut_from"):
-            out.append(f"- **{d}**: cut from the {r['cut_from']} chart, with its own settings")
+            out.append(f"- **{d}**: cut from the {r['cut_from']} chart, sharing its source and rhythm, with its own difficulty limits")
         elif not r["changed"]:
             out.append(f"- **{d}**: made with the settings as asked")
         else:
             out.append(f"- **{d}**: the meter target changed {len(r['changed'])} settings"
                        + "".join(f"; {r[k]}" for k in ("speed", "breathing") if r.get(k)))
+        if trace := r.get("melody"):
+            total = len(trace["selected_phrase_rows"])
+            kept = len(trace["stages"][-1]["retained_phrase_rows"])
+            out.append(f"  Lead rhythm: {trace['attack_alignment']:.0%} of steps near detected attacks; "
+                       f"{kept}/{total} selected phrase starts retained. These are detector measurements, not a musical accuracy score.")
+            previous = set(trace["selected_phrase_rows"])
+            for checkpoint in trace["stages"]:
+                retained = set(checkpoint["retained_phrase_rows"])
+                if lost := sorted(previous - retained):
+                    out.append(f"  Dropped by {checkpoint['stage']}: rows {lost}.")
+                previous = retained
     keys = sorted({k for d in order for k in made_with[d]["changed"]})
     if keys:
         fmt = lambda v: f"{v:.3g}" if isinstance(v, (int, float)) else str(v)
@@ -2174,17 +2223,31 @@ def to_ogg(src: Path, dst: Path) -> None:
 
 
 def make_chart(a: Analysis, spec: DiffSpec, repeats, rng: random.Random) -> list[Note]:
-    notes = refill(a, choose_holds(a, place_notes(a, spec, rng), spec), spec, rng)
+    notes = place_notes(a, spec, rng)
+    trace = {"source": "lead", "selected_phrase_rows": [n.row for n in notes if n.phrase_start], "stages": []}
+    def checkpoint(name, values):
+        if a.melody_source != "lead":
+            return values
+        values = lead_rhythm.constrain(a, values, spec)
+        lead_rhythm.stage(trace, name, values)
+        return values
+    notes = checkpoint("placement", notes)
+    notes = checkpoint("holds/refill", refill(a, choose_holds(a, notes, spec), spec, rng))
     notes = cap_eighths(notes, spec)
     notes = sorted(limit_sixteenths(a, notes, spec), key=lambda n: n.row)
-    notes = settle_rhythm(a, notes, spec, rng)
-    notes = breathe(a, notes, spec, rng)
+    notes = checkpoint("difficulty limits", notes)
+    notes = checkpoint("repeated rhythm", settle_rhythm(a, notes, spec, rng))
+    notes = checkpoint("breathing", breathe(a, notes, spec, rng))
     arrange(a, notes, spec, rng)
-    notes = apply_repeats(a, notes, repeats, spec, rng)
+    notes = checkpoint("repeated sections", apply_repeats(a, notes, repeats, spec, rng))
     notes = add_jump_holds(a, notes, spec, rng)
     notes = clear_jump_neighbors(notes)
     for _ in range(3):                 # a fix can expose the next pair
         notes = fix_quick_repeats(notes)
+    notes = checkpoint("footwork safety", notes)
+    if a.melody_source == "lead":
+        trace["attack_alignment"] = round(lead_rhythm.alignment(a, notes), 4)
+        return lead_rhythm.TracedNotes(notes, trace)
     return notes
 
 
@@ -2440,6 +2503,8 @@ def back_off(a: Analysis, top: list[Note], spec: DiffSpec, rng: random.Random) -
             w *= 1.4
         if n.hold_rows:
             w *= 3.0                                  # holds are easy and part of the song's shape
+        if a.melody_source == "lead" and n.phrase_start:
+            w *= 4
         return w
 
     order = sorted(top, key=weight, reverse=True)
@@ -2582,8 +2647,12 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
              stems: bool = False, follow: dict[str, float] | None = None, backoff: bool = False,
              shorten: float = 0.0, keep_verses: bool = False, lyrics: bool = False,
              art: bool = True, art_online: bool = False, art_image: Path | None = None,
-             art_from: str | None = None) -> Path:
+             art_from: str | None = None, melody_source: str = "singing") -> Path:
     bpm = validate_bpm(bpm)
+    if melody_source not in ("singing", "lead"):
+        raise ValueError("Melody source must be singing or lead")
+    if melody_source == "lead" and not stems:
+        raise ValueError("Lead instrument needs melody analysis (--stems)")
     title = title or src.stem
     name = file_name(title, artist)    # plain ASCII for the folder and files; the .sm keeps `title`
     # the StepMania song folder holds only the chart, the song and its
@@ -2620,6 +2689,8 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
                 if have_stems(d):
                     made_for.write_text("null")
         full_stems = d if have_stems(d) else None
+    if melody_source == "lead" and full_stems is None:
+        raise ValueError("Lead instrument needs the vocal separation add-on and completed stems; download melody analysis first")
     words = None
     if lyrics:
         words = song_lyrics(full_stems)
@@ -2630,7 +2701,7 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
         # is made for the shortened file, at the same tempo
         import shorten as shortener
         print(f"progress: analyzing {title} to shorten it", file=sys.stderr, flush=True)
-        a0 = analyze(song / music, bpm, full_stems if stems else None)
+        a0 = analyze(song / music, bpm, full_stems if stems else None, melody_source)
         secs0 = find_sections(a0, find_repeats(a0))
         if words:
             import verses
@@ -2652,7 +2723,7 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
                 words = cut.remap(words, a0)
     stem_dir = full_stems if stems else None
     print(f"progress: analyzing {title}", file=sys.stderr, flush=True)
-    a = analyze(song / music, bpm, stem_dir)
+    a = analyze(song / music, bpm, stem_dir, melody_source)
     rng = random.Random(seed)
     onset = song_onsets(song / music)
     repeats = find_repeats(a)
@@ -2677,12 +2748,24 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
     for spec in specs:
         print(f"progress: charting {spec.name}", file=sys.stderr, flush=True)
         if backoff and charts:
-            fol = follow_for(a, sections, spec, follow)
-            follows[spec.name] = [sec["follow"] for sec in sections]
+            top_name = charts[0][0].name
+            # Rhythm/source belong to the hardest chart, not an independent
+            # slider on the reduced difficulty. Record what was really used.
+            follows[spec.name] = list(follows[top_name])
+            fol = follow_for(a, sections, charts[0][0], follow)
             rng_at = rng.getstate()
-            notes = back_off(a, charts[0][1], spec, rng)
+            notes = back_off(with_follow(a, fol) if melody_source == "lead" else a, charts[0][1], spec, rng)
+            if melody_source == "lead":
+                trace = json.loads(json.dumps(getattr(charts[0][1], "melody_trace", {})))
+                if trace:
+                    trace["cut_from"] = top_name
+                    lead_rhythm.stage(trace, "easier-chart reduction", notes)
+                    trace["attack_alignment"] = round(lead_rhythm.alignment(with_follow(a, fol), notes), 4)
+                    notes = lead_rhythm.TracedNotes(notes, trace)
             charts.append((spec, notes, meter_for(notes, a, spec)))
             made_with[spec.name] = made_record(spec, spec) | {"cut_from": charts[0][0].name}
+            if hasattr(notes, "melody_trace"):
+                made_with[spec.name]["melody"] = notes.melody_trace
             if audio is not None:
                 same = random.Random()
                 same.setstate(rng_at)
@@ -2709,7 +2792,7 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
             # a few more versions; keep the one the groove meter likes best,
             # as long as it's as hard as the first
             first = estimate_meter(notes, a.spb)
-            best = (groove_of(a, notes, onset).total, made, notes, state)
+            best = (lead_rhythm.selection_score(ac, notes, groove_of(a, notes, onset).total), made, notes, state)
             for k in range(1, spec.groove_tries):
                 print(f"progress: charting {spec.name} (groove try {k + 1} of {spec.groove_tries})",
                       file=sys.stderr, flush=True)
@@ -2723,13 +2806,15 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
                     m2, n2 = spec, make_chart(ac, spec, repeats, alt)
                 if abs(estimate_meter(n2, a.spb) - first) > 0.4:
                     continue
-                g = groove_of(a, n2, onset).total
+                g = lead_rhythm.selection_score(ac, n2, groove_of(a, n2, onset).total)
                 if g > best[0]:
                     best = (g, m2, n2, st)
             _, made, notes, state = best
         spec = made
         charts.append((spec, notes, meter_for(notes, a, spec)))
         made_with[spec.name] = made_record(asked, made)
+        if hasattr(notes, "melody_trace"):
+            made_with[spec.name]["melody"] = notes.melody_trace
         if audio is not None:
             if spec.name in ais:
                 # the same chart without AI assist: same settings, same dice
@@ -2806,7 +2891,8 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
     (folder / f"{name}.stepgen.json").write_text(json.dumps({
         "source": str(src.resolve()), "title": title, "artist": artist, "out": str(out_dir.resolve()),
         "profile": PROFILE_NAME, "seed": seed, "bpm": bpm, "set": RUN_SETS, "easy": RUN_EASY,
-        "keep_format": keep_format, "stems": stems, "follow": follow or {}, "backoff": backoff,
+        "keep_format": keep_format, "stems": stems, "melody_source": melody_source,
+        "follow": follow or {}, "backoff": backoff,
         "shorten": {"target": shorten, "keep_verses": keep_verses, "kept_bars": cut.keep,
                     "summary": cut.describe()} if cut
         else ({"target": shorten, "keep_verses": keep_verses, "kept_bars": None} if shorten else None),
@@ -2820,6 +2906,16 @@ def generate(src: Path, out_dir: Path, title: str | None = None, artist: str = "
     print(f"{title}: {a.bpm:g} BPM, offset {-a.t0:.3f}s, beat confidence {a.beat_confidence:.2f}"
           f"{'  (low: consider --bpm)' if a.beat_confidence < 1.3 else ''}")
     for spec, notes, meter in charts:
+        if hasattr(notes, "melody_trace"):
+            trace = notes.melody_trace
+            print(f"  {spec.name}: lead attack alignment {trace['attack_alignment']:.0%}")
+            previous = set(trace["selected_phrase_rows"])
+            for checkpoint in trace["stages"]:
+                retained = set(checkpoint["retained_phrase_rows"])
+                lost = sorted(previous - retained)
+                if lost:
+                    print(f"    phrase starts dropped by {checkpoint['stage']}: rows {lost}")
+                previous = retained
         jumps = sum(len(n.panels) > 1 for n in notes)
         holds = sum(n.hold_rows > 0 for n in notes)
         try:
@@ -2863,6 +2959,8 @@ def main(argv=None) -> int:
     ap.add_argument("--stems", action="store_true",
                     help="separate vocals/drums/bass/other first (needs the vocal separation add-on) "
                          "so melody-following sections follow the singing")
+    ap.add_argument("--melody-source", choices=("singing", "lead"), default="singing",
+                    help="with --stems: follow singing (default) or lead-instrument attack rhythm; not pitch transcription")
     ap.add_argument("--follow", action="append", default=[], metavar="SECTION=0..1",
                     help="how much a section follows the melody instead of the beat: by number "
                          "(3=0.9), letter (B=0.8), name (chorus=1) or all=0.5 (repeatable)")
@@ -2935,7 +3033,7 @@ def main(argv=None) -> int:
                  args.artist, args.bpm, args.seed, args.clicks, specs, args.keep_format,
                  args.stems, {k.strip(): float(v) for k, v in (f.split("=", 1) for f in args.follow)},
                  args.backoff, args.shorten, args.keep_verses, args.lyrics,
-                 not args.no_art, args.art_online, args.art_image, args.art_from)
+                 not args.no_art, args.art_online, args.art_image, args.art_from, args.melody_source)
     return 0
 
 

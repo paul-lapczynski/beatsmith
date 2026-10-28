@@ -2,7 +2,7 @@
 
 A handoff for any coding agent (Claude Code, OpenAI Codex, ...) picking up
 BeatSmith. Read this first, then the [README](README.md). Last updated
-2026-10-27.
+2026-10-28.
 
 **If you can read Paul's private repo `paul-lapczynski/rhythm-agent`, start
 there:** its `AGENTS.md` and its issues are the up-to-date task list,
@@ -37,44 +37,39 @@ Python; the app is PySide6 (`beatsmith_app.py`), the generator is
 
 ## Current state
 
-- **1.0.0 is released** (tag `v1.0.0`, GitHub release with Windows `.msi`
-  and `.exe` and a macOS `.dmg`).
-- **PR #31 is merged** (add-ons as ready-made packs downloaded from the
-  release, Windows and Mac; closes #29). It is on `main` but not released.
-  Its `main` build passed. The packs are built by
-  `packaging/addon_pack.py` and attached to each release by `release.yml`.
-- **PR #34 is merged** (Release Please and shared installer versions).
-  Paul approved Release Please, saved `RELEASE_PLEASE_TOKEN`, and approved
-  enabling Actions PR creation. The first Prepare release run succeeded
-  and opened **PR #35, release 1.1.0**. All four build checks on #35 passed.
-  Verify current PR and workflow state before continuing; this is a snapshot.
-- **1.1.0 is not published yet.** The first automated tag/publication path
-  and the installed app's version-specific pack download still need checking.
+- **1.1.2 is published.** Release Please prepares version PRs after green
+  main builds. Paul reviews/merges; tag builds publish the installers and
+  four add-on packs only after all required builds pass.
+- Installer overlap protection, form-wheel protection, forced-BPM validation
+  and Windows add-on cleanup are merged (#40/#41). Existing older
+  uninstallers do not gain cleanup until updated. A mixed EXE/MSI install
+  requires removing both copies before installing one current copy.
+- **#28: Lead instrument mode** is implemented on this branch after Paul
+  approved the explicit source-choice design on October 28. Singing remains
+  the default. Lead uses real attack candidates from the other stem, favors
+  selected phrase starts, traces losses through later passes and includes
+  final attack alignment in groove-try selection. It does not transcribe
+  musical pitches. See README for controls and limits.
+- Local validation covers synthetic attacks/sustains/silence, all three
+  difficulties across six short song clips, baseline compatibility, and
+  UI/settings behavior. Detector alignment does not establish musical
+  accuracy. Human-marked audible phrase coverage and Paul's comparison play
+  tests remain acceptance gates before shipping #28.
 
-## Next tasks, in order
+## Remaining work
 
-1. **Finish release 1.1.0 through PR #35.** Paul reviews and merges the
-   version PR. Check its notes include the ready-made add-on packs from #31;
-   the initial generated notes only list #34. After merging, verify the
-   main build, Prepare release, tagged builds and publication. Check the
-   release has one MSI, one EXE, one DMG and four add-on packs, then verify
-   an installed app downloads its version's pack. Do not mark this done just
-   because PR builds pass. See "Releasing" below.
-2. **#28: Follow the melody**, for instrumental tunes such as piano in
-   Abyss. A [concrete design and acceptance plan](https://github.com/paul-lapczynski/beatsmith/issues/28#issuecomment-6436408296)
-   is posted and awaits Paul's approval before implementation. It proposes
-   an explicit Lead instrument source, controlled attack placement, and
-   measuring which phrase starts survive later passes. Production behavior
-   is unchanged. `_stem_melody` and `follow_for` are the starting points.
-   Explicit section overrides already bypass the automatic singing cap;
-   removing that cap alone is not the whole feature.
-3. **#32: GPU verse detection on Apple Silicon (mlx-whisper) stays parked.** Low payoff,
-   real risks (listed in the issue). Only do it if Paul asks; if so, compare
-   the sections both engines give on a few songs first.
+1. Finish #28 acceptance and PR review. Paul plays the short Singing/Lead
+   pairs in the local **BeatSmith Lead Preview** StepMania group. Do not
+   describe the mode as musically validated from its own detector score.
+2. Verify clean installed-app download, generation/playback and uninstall
+   behavior after the final release. Existing charts accidentally generated
+   at 1 BPM need regeneration using auto/detect BPM.
+3. Paul intends to wrap the project for now after #28. **#32 Mac GPU verse
+   detection stays parked.** Do not start it unless he asks.
 
-Smaller known gaps (README, "Limits of this version"): one constant BPM per
-song, bar start can land half a bar off, no triplets or mines, no
-section-aware styling.
+Known limits: one constant BPM per song, bar start can land half a bar off,
+no triplets or mines, no section-aware styling. Pitch-aware transcription
+is outside the approved bounded lead-rhythm mode.
 
 ## Layout
 
@@ -103,7 +98,7 @@ python stepgen.py "Some Song.mp3" --artist "Someone" --out songs/
 python beatsmith_app.py          # or run_app.bat on Windows
 ```
 
-Installer versions and release sequencing have ten automated checks:
+Installer, UI and melody checks run with:
 
 ```bash
 python -m unittest discover -s packaging -p "test_*.py"
@@ -111,7 +106,7 @@ python -m unittest discover -s packaging -p "test_*.py"
 
 Both installer jobs run them. PR #34 also passed Actionlint and ten isolated
 workflow scenarios. These do not replace a live publication check.
-There is no general chart-generation test suite. Check chart changes by:
+Lead-mode timing and safety have synthetic regression checks. Also check chart changes by:
 - generating charts for a few songs and comparing the stats and charts
   before and after (`chartstats.py`, the app's stats panel);
 - for timing or editor changes, playing the result in StepMania (Paul plays
