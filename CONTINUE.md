@@ -103,10 +103,10 @@ python stepgen.py "Some Song.mp3" --artist "Someone" --out songs/
 python beatsmith_app.py          # or run_app.bat on Windows
 ```
 
-Installer versions have six automated checks:
+Installer versions and release sequencing have ten automated checks:
 
 ```bash
-python -m unittest discover -s packaging -p test_version.py
+python -m unittest discover -s packaging -p "test_*.py"
 ```
 
 Both installer jobs run them. PR #34 also passed Actionlint and ten isolated

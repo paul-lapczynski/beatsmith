@@ -87,7 +87,7 @@ jobs:
           echo "BEATSMITH_VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Check installer versions
-        run: python -m unittest discover -s packaging -p test_version.py
+        run: python -m unittest discover -s packaging -p "test_*.py"
 
       - name: Build
         shell: cmd
@@ -124,7 +124,7 @@ jobs:
           echo "BEATSMITH_VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Check installer versions
-        run: python -m unittest discover -s packaging -p test_version.py
+        run: python -m unittest discover -s packaging -p "test_*.py"
 
       - name: Build
         env:

@@ -7,6 +7,12 @@ release and tag. The existing Release workflow builds the tagged commit,
 uploads the installers and all four add-on packs, then publishes the draft.
 A failed build leaves the release unpublished.
 
+Release preparation creates the approved release before considering a new
+version PR. A run that creates a draft does not also propose another version.
+While any draft release remains unfinished, later preparation runs leave it
+alone; finish or recover that release first. Once it is published, new changes
+can produce the next version PR.
+
 ## Setup before enabling
 
 Create a repository secret named `RELEASE_PLEASE_TOKEN` using a dedicated bot
