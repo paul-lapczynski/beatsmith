@@ -1,6 +1,7 @@
 <!-- WiX v5 source for the BeatSmith MSI. Built by build.bat; see BUILD.md. -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
-     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Package Name="BeatSmith" Manufacturer="BeatSmith" Version="$(Version)"
            UpgradeCode="6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11" Scope="perMachine">
     <SummaryInformation Description="BeatSmith: StepMania chart generator" />
@@ -22,6 +23,20 @@
 
     <ComponentGroupRef Id="AppFiles" />
 
+    <!-- Remove only the invoking user's private add-ons. RemoveFolderEx expands
+         these environment variables before costing; directory ids are not yet
+         available then. A major upgrade removes the old product too, so exclude
+         that removal: packs must survive an ordinary update. -->
+    <Property Id="BEATSMITHADDONS" Value="%LOCALAPPDATA%\BeatSmith\addons" />
+    <Property Id="STEPGENADDONS" Value="%LOCALAPPDATA%\stepgen\addons" />
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Component Id="AddonCleanup" Guid="553BB67E-B630-47D0-8176-EBD770949092">
+        <RegistryValue Root="HKLM" Key="Software\BeatSmith" Name="addonCleanup" Type="integer" Value="1" KeyPath="yes" />
+        <util:RemoveFolderEx Property="BEATSMITHADDONS" On="uninstall" Condition="NOT UPGRADINGPRODUCTCODE" />
+        <util:RemoveFolderEx Property="STEPGENADDONS" On="uninstall" Condition="NOT UPGRADINGPRODUCTCODE" />
+      </Component>
+    </StandardDirectory>
+
     <!-- MSI cannot upgrade an Inno installation, even when both are called
          BeatSmith. Installing over it mixes independently versioned Python
          DLLs/extensions. Block both registry views and allow uninstalling an
@@ -42,7 +57,7 @@
       <RegistrySearch Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{6C1C5E57-3F4B-4D8C-9E61-5A0D2B7F7C11}_is1" Name="DisplayName" Type="raw" Bitness="always32" />
     </Property>
     <Launch Condition="REMOVE = &quot;ALL&quot; OR (NOT STEPGENEXE AND NOT STEPGENEXEUSER AND NOT STEPGENEXE32 AND NOT STEPGENEXEUSER32)"
-            Message="An earlier setup.exe installation of BeatSmith or stepgen must be uninstalled first. In Settings &gt; Apps, remove that copy, then run this installer again. Your songs, settings and add-ons are kept." />
+            Message="An earlier setup.exe installation of BeatSmith or stepgen must be uninstalled first. In Settings &gt; Apps, remove that copy, then run this installer again. Your songs and settings are kept; downloaded add-ons may need downloading again." />
 
     <!-- "Clean install": the app forgets the settings and saved profiles of
          earlier versions the first time it starts (beatsmith_app.clean_install).
@@ -69,7 +84,7 @@
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
         <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Clean install" />
         <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Start fresh, or keep what earlier versions remembered." />
-        <Control Id="OldText" Type="Text" X="20" Y="170" Width="330" Height="50" NoPrefix="yes" Hidden="yes" ShowCondition="OLDSTEPGEN" Text="Looks like you had stepgen, the old version of BeatSmith. It will be removed before BeatSmith installs. Your songs, settings and add-ons are kept." />
+        <Control Id="OldText" Type="Text" X="20" Y="170" Width="330" Height="50" NoPrefix="yes" Hidden="yes" ShowCondition="OLDSTEPGEN" Text="Looks like you had stepgen, the old version of BeatSmith. It will be removed before BeatSmith installs. Your songs and settings are kept; add-ons may need downloading again." />
         <Control Id="CleanBox" Type="CheckBox" X="20" Y="64" Width="330" Height="17" Property="CLEANINSTALL" CheckBoxValue="1" Text="Clean install: forget settings from earlier versions" />
         <Control Id="CleanText" Type="Text" X="37" Y="86" Width="313" Height="70" NoPrefix="yes" Text="The first time BeatSmith starts, it clears the settings, window layout and saved profiles that earlier versions left behind. The songs you've made, their data and downloaded add-ons are kept." />
       </Dialog>

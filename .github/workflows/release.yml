@@ -91,14 +91,15 @@ jobs:
 
       - name: Build
         shell: cmd
-        env:
-          # the Inno Setup .exe installer only goes into releases
-          BEATSMITH_SKIP_EXE: ${{ startsWith(github.ref, 'refs/tags/v') && '0' || '1' }}
         run: packaging\build.bat
 
       - name: Test installed MSI and legacy EXE guard
         shell: pwsh
         run: ./packaging/test_msi.ps1 -MsiPath "packaging/dist/BeatSmith-$($env:BEATSMITH_VERSION).msi"
+
+      - name: Test EXE update and add-on uninstall
+        shell: pwsh
+        run: ./packaging/test_exe.ps1 -ExePath "packaging/dist/BeatSmith-setup-$($env:BEATSMITH_VERSION).exe"
 
       - name: Keep the build
         uses: actions/upload-artifact@v4

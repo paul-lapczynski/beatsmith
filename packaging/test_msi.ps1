@@ -5,6 +5,7 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or -not $env:RUNNER_TEMP) {
     throw 'Run this installer test only on a disposable GitHub Actions runner.'
 }
 $msi = (Resolve-Path -LiteralPath $MsiPath).Path
+. "$PSScriptRoot/addon-fixtures.ps1"
 $testRoot = Join-Path $env:RUNNER_TEMP ('beatsmith-msi-' + [guid]::NewGuid())
 $blocked = Join-Path $testRoot 'blocked'
 $installed = Join-Path $testRoot 'installed'
@@ -61,11 +62,29 @@ foreach ($view in @('Registry64', 'Registry32')) {
 
 $didInstall = $false
 try {
+    New-AddonFixtures
     $code = Invoke-TestMsi @('/i', "`"$msi`"", '/qn', '/norestart', "INSTALLFOLDER=`"$installed`"", '/L*v', "`"$(Join-Path $testRoot 'installed.log')`"")
     if ($code -notin @(0, 3010)) { throw "Clean MSI install failed: $code" }
     $didInstall = $true
     python "$PSScriptRoot/smoke_app.py" (Join-Path $installed 'BeatSmith.exe')
     if ($LASTEXITCODE -ne 0) { throw 'The MSI-installed app failed startup.' }
+    Assert-AddonsKept
+
+    # Rebuild the same version with a new ProductCode. AllowSameVersionUpgrades
+    # makes this a real major upgrade, including removal of the old product.
+    $upgrade = Join-Path $testRoot 'upgrade.msi'
+    Push-Location $PSScriptRoot
+    try {
+        wix build beatsmith.wxs files.wxs -arch x64 -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -d "Version=$env:BEATSMITH_VERSION" -o $upgrade
+        if ($LASTEXITCODE -ne 0) { throw 'Failed to build upgrade fixture.' }
+    } finally { Pop-Location }
+    $code = Invoke-TestMsi @('/i', "`"$upgrade`"", '/qn', '/norestart', "INSTALLFOLDER=`"$installed`"", '/L*v', "`"$(Join-Path $testRoot 'upgraded.log')`"")
+    if ($code -notin @(0, 3010)) { throw "MSI upgrade failed: $code" }
+    $msi = $upgrade
+    Assert-AddonsKept
+    $log = Get-Content -LiteralPath (Join-Path $testRoot 'upgraded.log') -Raw
+    if ($log -notmatch 'UPGRADINGPRODUCTCODE') { throw 'Upgrade did not remove an older product.' }
+    Write-Host 'PASS: actual MSI upgrade preserves current and legacy add-ons'
 
     # Users with a mixed installation must still be able to uninstall the MSI.
     With-LegacyEntry 'Registry64' 'BeatSmith version 1.0.0' {
@@ -73,10 +92,13 @@ try {
         if ($code -notin @(0, 3010)) { throw "MSI uninstall with legacy entry failed: $code" }
     }
     $didInstall = $false
+    Assert-AddonsRemoved
+    Write-Host 'PASS: MSI uninstall removes nested add-ons and preserves neighboring user data'
     Write-Host 'PASS: clean installed app starts; mixed-registration uninstall remains possible'
 } finally {
     if ($didInstall) {
         $code = Invoke-TestMsi @('/x', "`"$msi`"", '/qn', '/norestart')
         if ($code -notin @(0, 3010)) { throw "Test install cleanup failed: $code" }
     }
+    Clear-AddonFixtures
 }
