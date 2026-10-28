@@ -37,6 +37,7 @@ set /p BEATSMITH_VERSION=<version-build.tmp
 del version-build.tmp
 python -m pip install --upgrade pip >nul
 python -m pip install -r ..\requirements.txt -r ..\requirements-app.txt pyinstaller || goto :fail
+python -m unittest discover -s . -p test_*.py || goto :fail
 
 if not exist ffmpeg\ffmpeg.exe (
   echo Fetching ffmpeg for .wma/.m4a support...

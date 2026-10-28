@@ -1882,6 +1882,8 @@ class EditorWidget(QWidget):
 
 def main():
     app = QApplication(sys.argv)
+    from form_controls import protect_form_wheels
+    protect_form_wheels(app)
     win = QMainWindow()
     ed = EditorWidget()
     win.setCentralWidget(ed)
