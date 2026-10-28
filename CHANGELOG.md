@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/paul-lapczynski/beatsmith/compare/v1.1.1...v1.1.2) (2026-10-28)
+
+
+### Bug Fixes
+
+* remove downloaded add-ons when uninstalling on Windows ([#41](https://github.com/paul-lapczynski/beatsmith/issues/41)) ([3317a38](https://github.com/paul-lapczynski/beatsmith/commit/3317a388ac299676752eaa8e64a9990af63249d3))
+
 ## [1.1.1](https://github.com/paul-lapczynski/beatsmith/compare/v1.1.0...v1.1.1) (2026-10-28)
 
 
