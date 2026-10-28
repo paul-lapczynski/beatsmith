@@ -2,7 +2,7 @@
 
 A handoff for any coding agent (Claude Code, OpenAI Codex, ...) picking up
 BeatSmith. Read this first, then the [README](README.md). Last updated
-2026-10-25.
+2026-10-27.
 
 **If you can read Paul's private repo `paul-lapczynski/rhythm-agent`, start
 there:** its `AGENTS.md` and its issues are the up-to-date task list,
@@ -43,23 +43,32 @@ Python; the app is PySide6 (`beatsmith_app.py`), the generator is
   release, Windows and Mac; closes #29). It is on `main` but not released.
   Its `main` build passed. The packs are built by
   `packaging/addon_pack.py` and attached to each release by `release.yml`.
-- **No open PRs.**
+- **PR #34 is merged** (Release Please and shared installer versions).
+  Paul approved Release Please, saved `RELEASE_PLEASE_TOKEN`, and approved
+  enabling Actions PR creation. The first Prepare release run succeeded
+  and opened **PR #35, release 1.1.0**. All four build checks on #35 passed.
+  Verify current PR and workflow state before continuing; this is a snapshot.
+- **1.1.0 is not published yet.** The first automated tag/publication path
+  and the installed app's version-specific pack download still need checking.
 
 ## Next tasks, in order
 
-1. **Release 1.1.0.** `main` has #31 since 1.0.0. Check the latest
-   Release workflow run on `main` is green, then tag it (see "Releasing").
-   Check the add-on packs are attached to the release and that the app
-   downloads them from it. Write short release notes.
-2. **#30: Changesets (or release-please) for versions and release notes.**
-   The issue has the plan and the open questions. Keep the existing
-   `release.yml` doing the builds; the new tool only bumps the version,
-   writes the changelog and pushes the `vX.Y.Z` tag.
-3. **#28: Follow the melody**, for songs where the tune is an instrument
-   (piano in Abyss). Brainstorm issue: weigh the ideas in it and propose a
-   design to Paul before building. Starting points: `_stem_melody` and
-   `follow_curve` in `stepgen.py`.
-4. **#32: GPU verse detection on Apple Silicon (mlx-whisper).** Low payoff,
+1. **Finish release 1.1.0 through PR #35.** Paul reviews and merges the
+   version PR. Check its notes include the ready-made add-on packs from #31;
+   the initial generated notes only list #34. After merging, verify the
+   main build, Prepare release, tagged builds and publication. Check the
+   release has one MSI, one EXE, one DMG and four add-on packs, then verify
+   an installed app downloads its version's pack. Do not mark this done just
+   because PR builds pass. See "Releasing" below.
+2. **#28: Follow the melody**, for instrumental tunes such as piano in
+   Abyss. A [concrete design and acceptance plan](https://github.com/paul-lapczynski/beatsmith/issues/28#issuecomment-6436408296)
+   is posted and awaits Paul's approval before implementation. It proposes
+   an explicit Lead instrument source, controlled attack placement, and
+   measuring which phrase starts survive later passes. Production behavior
+   is unchanged. `_stem_melody` and `follow_for` are the starting points.
+   Explicit section overrides already bypass the automatic singing cap;
+   removing that cap alone is not the whole feature.
+3. **#32: GPU verse detection on Apple Silicon (mlx-whisper) stays parked.** Low payoff,
    real risks (listed in the issue). Only do it if Paul asks; if so, compare
    the sections both engines give on a few songs first.
 
@@ -82,6 +91,9 @@ section-aware styling.
 | `docs/` | GitHub Pages site and `DIALS.md` (every slider, with pictures) |
 | `packaging/` | installer builds; see `packaging/BUILD.md` |
 | `.github/workflows/release.yml` | builds Windows and Mac on PRs and `main`, publishes on tags |
+| `.github/workflows/release-please.yml` | prepares version PRs and draft releases after successful current-main builds |
+| `version.txt`, `packaging/version.py` | shared source version and installer/tag validation |
+| `packaging/RELEASING.md` | release automation setup, review flow and recovery |
 
 ## Run and check
 
@@ -91,7 +103,15 @@ python stepgen.py "Some Song.mp3" --artist "Someone" --out songs/
 python beatsmith_app.py          # or run_app.bat on Windows
 ```
 
-There is no automated test suite. Check a change by:
+Installer versions have six automated checks:
+
+```bash
+python -m unittest discover -s packaging -p test_version.py
+```
+
+Both installer jobs run them. PR #34 also passed Actionlint and ten isolated
+workflow scenarios. These do not replace a live publication check.
+There is no general chart-generation test suite. Check chart changes by:
 - generating charts for a few songs and comparing the stats and charts
   before and after (`chartstats.py`, the app's stats panel);
 - for timing or editor changes, playing the result in StepMania (Paul plays
@@ -104,18 +124,17 @@ PC but are gitignored; never add them.
 
 ## Releasing
 
-Releases are made from `main` by a tag; the workflow builds and publishes.
+Use the reviewed version PR. Release Please updates `version.txt`, the
+manifest and changelog. After Paul merges it and the current-main build
+passes, automation creates a draft release and tag. The Release workflow
+builds that tag and publishes only after every required file is present.
+Never merge the version PR or publish manually on Paul's behalf.
 
-```bash
-git switch main
-git pull
-git tag v1.1.0
-git push origin v1.1.0
-```
-
-Tag only a commit whose `main` build is green. Then edit the GitHub release
-to add short notes. Versions follow semver (`v1.1.0` for features, `v1.0.1`
-for fixes).
+Use `feat:` or `fix:` squash-merge titles for future changes so the next
+version and notes can be inferred. See [packaging/RELEASING.md](packaging/RELEASING.md)
+for setup, manual recovery and token renewal. The token's presence has been
+verified and the first version PR was generated; never put its value here
+or in a log. Manual tags are a fallback and must agree with `version.txt`.
 
 ## Working style
 
