@@ -25,6 +25,7 @@ where wix >nul 2>nul || (
   dotnet tool install --global wix --version 5.0.2 || goto :fail
 )
 wix extension add -g WixToolset.UI.wixext/5.0.2 >nul || goto :fail
+wix extension add -g WixToolset.Util.wixext/5.0.2 >nul || goto :fail
 
 rem ---- the app ------------------------------------------------------------
 if not exist .venv (
@@ -50,7 +51,7 @@ python smoke_app.py dist\BeatSmith\BeatSmith.exe || goto :fail
 
 rem ---- installers ---------------------------------------------------------
 python harvest.py dist\BeatSmith files.wxs || goto :fail
-wix build beatsmith.wxs files.wxs -arch x64 -ext WixToolset.UI.wixext -d Version=%BEATSMITH_VERSION% -o dist\BeatSmith-%BEATSMITH_VERSION%.msi || goto :fail
+wix build beatsmith.wxs files.wxs -arch x64 -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -d Version=%BEATSMITH_VERSION% -o dist\BeatSmith-%BEATSMITH_VERSION%.msi || goto :fail
 rem a real build is well over 100 MB; a tiny MSI means the app files didn't go in
 for %%F in (dist\BeatSmith-%BEATSMITH_VERSION%.msi) do if %%~zF LSS 50000000 (
   echo The MSI is only %%~zF bytes, so the app files are missing from it.
@@ -62,7 +63,9 @@ if not exist %ISCC% set ISCC="%ProgramFiles%\Inno Setup 6\ISCC.exe"
 rem winget installs it just for the user when not run as admin
 if not exist %ISCC% set ISCC="%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
 rem BEATSMITH_SKIP_EXE=1 skips it (test builds only need the MSI)
-if not "%BEATSMITH_SKIP_EXE%"=="1" if exist %ISCC% %ISCC% installer.iss
+if not "%BEATSMITH_SKIP_EXE%"=="1" if exist %ISCC% (
+  %ISCC% installer.iss || goto :fail
+)
 
 echo.
 echo Done. Installer: %~dp0dist\BeatSmith-%BEATSMITH_VERSION%.msi

@@ -45,6 +45,12 @@ Name: "{autodesktop}\BeatSmith"; Filename: "{app}\BeatSmith.exe"; Tasks: desktop
 [Run]
 Filename: "{app}\BeatSmith.exe"; Description: "Start BeatSmith"; Flags: nowait postinstall skipifsilent
 
+[UninstallDelete]
+; Only private downloads, including the pre-rename location. In-place Inno
+; upgrades append the uninstall log; these entries run on uninstall, not update.
+Type: filesandordirs; Name: "{localappdata}\BeatSmith\addons"
+Type: filesandordirs; Name: "{localappdata}\stepgen\addons"
+
 [Code]
 function InstallTime(Param: String): String;
 begin
@@ -97,7 +103,7 @@ begin
   if HadStepgen then
     Result := SuppressibleMsgBox('Looks like you have stepgen, the old version of BeatSmith. ' +
       'It has to be removed before BeatSmith can be installed.' + #13#10#13#10 +
-      'Your songs, settings and add-ons are kept: BeatSmith picks them up the first time it starts.' + #13#10#13#10 +
+      'Your songs and settings are kept. Downloaded add-ons may need downloading again.' + #13#10#13#10 +
       'Remove stepgen and continue?', mbConfirmation, MB_YESNO, IDYES) = IDYES;
 end;
 

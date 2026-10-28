@@ -21,8 +21,8 @@ installing a newer version replaces the old one.
 Use the same installer type when upgrading. The MSI cannot upgrade a copy
 installed by setup.exe; it blocks that combination and asks you to remove
 the setup.exe copy first. If both appear in Settings > Apps, uninstall both
-BeatSmith entries, then install one current copy. Songs, settings and add-ons
-are kept. Overlapping installers can leave incompatible Python files in the
+BeatSmith entries, then install one current copy. Songs and settings are kept;
+downloaded add-ons are removed by the new uninstallers. Overlapping installers can leave incompatible Python files in the
 same application folder.
 
 Each build starts the frozen app's command-line entry point before making
@@ -43,8 +43,14 @@ publisher" the first time. Click "More info", then "Run anyway".
 Demucs and PyTorch (about 1 GB) are deliberately left out of the installer
 (`excludes` in beatsmith.spec). The app downloads them on request into
 `%LOCALAPPDATA%\BeatSmith\addons\stems` with a private embeddable Python, and
-runs `stems.py` (shipped as a plain data file) with it. Uninstalling the app
-leaves that folder; delete it by hand to remove the add-on.
+runs `stems.py` (shipped as a plain data file) with it. On Windows, uninstalling
+the app removes the current user's downloaded add-ons, including models,
+private Python and GPU packages, from `%LOCALAPPDATA%\BeatSmith\addons` and
+the older `%LOCALAPPDATA%\stepgen\addons` location. Songs and settings outside
+those folders stay. Updating with the same installer type keeps the downloads.
+Older uninstallers do not gain this cleanup until the app is updated.
+Uninstall from the Windows account that downloaded the add-ons; other users'
+private folders are not scanned or removed.
 
 ## macOS
 
