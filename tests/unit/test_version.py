@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location("build_version", Path(__file__).with_name("version.py"))
+spec = importlib.util.spec_from_file_location("build_version", Path(__file__).resolve().parents[2] / "packaging/version.py")
 version = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(version)
 

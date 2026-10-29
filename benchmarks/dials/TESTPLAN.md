@@ -216,8 +216,8 @@ Hard charts) to find one preset for a style rather than one song.
 
 ## 8. Outputs
 
-- `dialtest/dialtest.py run|report|images|docs|preview|find-preset`
-- `dialtest/results/*.csv`: every chart's settings and fingerprint
-- `dialtest/REPORT.md`: grades, numbers, interactions, Advanced map
+- `benchmarks/dials/dialtest.py run|report|images|docs|preview|find-preset`
+- `benchmarks/dials/results/*.csv`: every chart's settings and fingerprint
+- `benchmarks/dials/REPORT.md`: grades, numbers, interactions, Advanced map
 - `docs/DIALS.md` + `docs/img/*.png`: the README section for GitHub
 - `docs/preview.html`: the semi-live preview (one page, works offline)

@@ -66,14 +66,14 @@ try {
     $code = Invoke-TestMsi @('/i', "`"$msi`"", '/qn', '/norestart', "INSTALLFOLDER=`"$installed`"", '/L*v', "`"$(Join-Path $testRoot 'installed.log')`"")
     if ($code -notin @(0, 3010)) { throw "Clean MSI install failed: $code" }
     $didInstall = $true
-    python "$PSScriptRoot/smoke_app.py" (Join-Path $installed 'BeatSmith.exe')
+    python "$PSScriptRoot/../../packaging/smoke_app.py" (Join-Path $installed 'BeatSmith.exe')
     if ($LASTEXITCODE -ne 0) { throw 'The MSI-installed app failed startup.' }
     Assert-AddonsKept
 
     # Rebuild the same version with a new ProductCode. AllowSameVersionUpgrades
     # makes this a real major upgrade, including removal of the old product.
     $upgrade = Join-Path $testRoot 'upgrade.msi'
-    Push-Location $PSScriptRoot
+    Push-Location "$PSScriptRoot/../../packaging"
     try {
         wix build beatsmith.wxs files.wxs -arch x64 -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -d "Version=$env:BEATSMITH_VERSION" -o $upgrade
         if ($LASTEXITCODE -ne 0) { throw 'Failed to build upgrade fixture.' }

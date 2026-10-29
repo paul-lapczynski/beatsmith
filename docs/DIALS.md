@@ -24,7 +24,7 @@ The pictures are the Medium chart of *BeatSmith Demo* (examples/BeatSmith Demo, 
 | [Arrows follow (melody)](#arrows-follow-melody) | Steps from the drums, or from the tune (in choruses most) | **D** |
 | [AI assist](#ai-assist) | Who decides where the steps go: BeatSmith's rules or the AI model | **B** |
 
-The grade is from the dial test ([how it's scored](../dialtest/REPORT.md#1-grades)): A means it clearly moves what its label says, always in the same direction, on every song, without changing other things, and keeps working with a difficulty target on.
+The grade is from the dial test ([how it's scored](../benchmarks/dials/REPORT.md#1-grades)): A means it clearly moves what its label says, always in the same direction, on every song, without changing other things, and keeps working with a difficulty target on.
 
 **The order things happen in:** the profile sets every value, Groove moves its settings, the Feel sliders move theirs from there (so they have the last word), exact values from the Advanced table replace whatever the sliders made, and then the difficulty number turns density, jumps, half-beats, holds and faster notes up or down until the chart rates what you asked for. Arrows follow and AI assist work earlier, on where the music says a step could go; everything after that still applies.
 
@@ -153,7 +153,7 @@ Sets melody_follow. Choruses get the full amount, verses and bridges 60%, intros
 **Test grade D** (score per chart: Easy 49, Medium 48, Hard 37). On Hard: moves it 12 · same direction 50 · survives target 51 · stays in its lane 87 · every song 17 (each out of 100).
 
 - It changes the chart: at 100%, about a third of the step positions are different from the beat-only chart.
-- It needs vocal separation (stems) to do what it says. Re-tested on 4 songs with stems (dialtest/follow_stems.py): with stems, steps land more on the vocal and lead notes as Follow goes up (62.6 to 66.6 on a 0-100 scale where 50 is random, seed noise 0.4), on every song and every difficulty, most on Easy (65.7 to 71.5). Without stems it moves just as many steps, but not toward the vocal.
+- It needs vocal separation (stems) to do what it says. Re-tested on 4 songs with stems (benchmarks/dials/follow_stems.py): with stems, steps land more on the vocal and lead notes as Follow goes up (62.6 to 66.6 on a 0-100 scale where 50 is random, seed noise 0.4), on every song and every difficulty, most on Easy (65.7 to 71.5). Without stems it moves just as many steps, but not toward the vocal.
 - The effect is modest: steps still sit mostly on the drums (about 90 on the same scale, unchanged), so it nudges the chart toward the tune rather than rebuilding it.
 - Arrows rising and falling with the tune is barely measurable even with stems. BeatSmith reads the melody's brightness, not its pitch, which is a weak stand-in. Reading real pitch from the vocal stem is the likely fix.
 - The Feel sliders keep working with it on. With stems, Footwork keeps its full effect at Follow 100 (the earlier full-mix test showed it losing most of it).
@@ -190,21 +190,21 @@ Every setting, per chart, after the profile and the sliders. Editing a cell pins
 
 ## Find a preset from a chart you like
 
-`python dialtest/dialtest.py find-preset "path/to/Song.sm" --name my-style` reads the chart (.sm, .ssc or .dwi) and its song, measures it the way the dial test measures BeatSmith's charts, then makes charts and moves one control at a time until BeatSmith's chart of that song is as close to it as the controls allow. It saves `profiles/my-style.toml` (each difficulty's settings, aimed at the chart's own difficulty) and `my-style.find-preset.md` with how close each measurement got. It takes a few minutes per chart on the CPU and only reads the chart's folder.
+`python benchmarks/dials/dialtest.py find-preset "path/to/Song.sm" --name my-style` reads the chart (.sm, .ssc or .dwi) and its song, measures it the way the dial test measures BeatSmith's charts, then makes charts and moves one control at a time until BeatSmith's chart of that song is as close to it as the controls allow. It saves `profiles/my-style.toml` (each difficulty's settings, aimed at the chart's own difficulty) and `my-style.find-preset.md` with how close each measurement got. It takes a few minutes per chart on the CPU and only reads the chart's folder.
 
 - Checked on a chart BeatSmith made with known settings (Jumps 80, Breathing 20, Holds 70): it found Jumps 75, Breathing 25, Holds 75, with everything else left at 50.
 - After the sliders it fine-tunes a few exact settings the sliders can't reach (jacks, run_breaks, hold_rate and others) and writes those into the profile too.
-- On a real hand-made chart (Wrong Note, Hard, by Paul) it got close on jumps, freezes, holds and the 8th/beat mix, and couldn't match the jacks: the chart has 12 jacks per 100 steps and BeatSmith makes about 4 whatever the settings, because the jacks setting is weak (it's been kept, and could be made stronger). The result is in [dialtest/examples](../dialtest/examples/).
+- On a real hand-made chart (Wrong Note, Hard, by Paul) it got close on jumps, freezes, holds and the 8th/beat mix, and couldn't match the jacks: the chart has 12 jacks per 100 steps and BeatSmith makes about 4 whatever the settings, because the jacks setting is weak (it's been kept, and could be made stronger). The generated comparison examples are local test output and are not included in this repository.
 
 ## Re-running the tests
 
 ```
-python dialtest/dialtest.py run            # the whole plan, about an hour on 4 cores
-python dialtest/dialtest.py report         # dialtest/REPORT.md
-python dialtest/dialtest.py images         # docs/img/
-python dialtest/dialtest.py preview        # docs/preview.html
-python dialtest/dialtest.py docs           # this page
+python benchmarks/dials/dialtest.py run            # the whole plan, about an hour on 4 cores
+python benchmarks/dials/dialtest.py report         # benchmarks/dials/REPORT.md
+python benchmarks/dials/dialtest.py images         # docs/img/
+python benchmarks/dials/dialtest.py preview        # docs/preview.html
+python benchmarks/dials/dialtest.py docs           # this page
 ```
 
-Needs `pip install -r dialtest/requirements.txt` on top of BeatSmith's own. `run` takes any songs (`dialtest.py run a.ogg b.mp3`), needs only the CPU, and resumes where it stopped. The plan is in [dialtest/TESTPLAN.md](../dialtest/TESTPLAN.md), every number in [dialtest/REPORT.md](../dialtest/REPORT.md).
+Needs `pip install -r benchmarks/dials/requirements.txt` on top of BeatSmith's own. `run` takes any songs (`dialtest.py run a.ogg b.mp3`), needs only the CPU, and resumes where it stopped. The plan is in [benchmarks/dials/TESTPLAN.md](../benchmarks/dials/TESTPLAN.md), every number in [benchmarks/dials/REPORT.md](../benchmarks/dials/REPORT.md).
 

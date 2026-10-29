@@ -107,7 +107,8 @@ Use music you have permission to use. BeatSmith does not provide a song library.
 | [Control reference](docs/DIALS.md) | Detailed slider behavior and the earlier dial measurements |
 | [Interactive dial preview](https://paul-lapczynski.github.io/beatsmith/preview.html) | Compare what the controls do visually |
 | [Command-line reference](docs/COMMAND_LINE.md) | Run from source, generation options, profiles and review tools |
-| [Repository cleanup plan](docs/REPOSITORY_PLAN.md) | Proposed staged organization with compatibility checks; no runtime moves made |
+| [Repository layout](docs/REPOSITORY_LAYOUT.md) | Current code/tool/test organization and compatibility commands |
+| [Cleanup plan](docs/REPOSITORY_PLAN.md) | Staged migration approach and validation gates |
 | [Installer builds](packaging/BUILD.md) | Build Windows and Mac packages |
 | [Releasing](packaging/RELEASING.md) | Maintainer release automation and recovery |
 

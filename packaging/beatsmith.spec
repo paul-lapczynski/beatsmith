@@ -5,9 +5,21 @@ from PyInstaller.utils.hooks import collect_all
 root = SPECPATH + "/.."
 datas = [(root + "/patterns.toml", "."), (root + "/profiles", "profiles"),
          (root + "/README.md", "."), (SPECPATH + "/beatsmith.png", "."),
-         (root + "/stems.py", "."), (root + "/lyrics.py", "."),     # run by the optional add-ons' own Python
-         (root + "/accel.py", ".")]
+         (root + "/workers/stems.py", "."), (root + "/workers/lyrics.py", "."),     # run by the optional add-ons' own Python
+         (root + "/src/beatsmith/accel.py", ".")]
 datas += [(root + "/models", "models")]                          # AI assist model
+# Help opens a local README: ship its guides and images too, without bundling
+# developer scripts, bytecode caches or temporary screenshot-generation files.
+from pathlib import Path
+datas += [(root + "/AI_USAGE.md", "."), (root + "/LICENSE", "."),
+          (root + "/branding/beatsmith-mark-512.png", "branding")]
+for name in ("APP_GUIDE.md", "COMMAND_LINE.md", "DIALS.md", "REPOSITORY_PLAN.md", "REPOSITORY_LAYOUT.md"):
+    datas.append((root + "/docs/" + name, "docs"))
+for image in (Path(root) / "docs/img").rglob("*"):
+    if image.is_file() and image.suffix.lower() in (".png", ".svg", ".jpg", ".jpeg"):
+        datas.append((str(image), str(image.parent.relative_to(Path(root)))))
+for name in ("BUILD.md", "RELEASING.md"):
+    datas.append((root + "/packaging/" + name, "packaging"))
 # the app's version, for what it tells web services about itself (artwork.py's User-Agent)
 import os
 import runpy
@@ -15,7 +27,7 @@ version = runpy.run_path(SPECPATH + "/version.py")["build_version"]()
 with open(SPECPATH + "/version.txt", "w") as f:
     f.write(version)
 datas += [(SPECPATH + "/version.txt", ".")]
-binaries, hidden = [], ["stepgen", "chartstats", "llm_review", "chart_editor", "groove", "layout", "shorten", "verses", "addons", "ai_assist", "accel", "artwork", "stems", "mutagen", "sounddevice"]
+binaries, hidden = [], ['beatsmith.accel', 'beatsmith.addons', 'beatsmith.ai_assist', 'beatsmith.artwork', 'beatsmith.beatsmith_app', 'beatsmith.chart_editor', 'beatsmith.form_controls', 'beatsmith.groove', 'beatsmith.layout', 'beatsmith.resources', 'beatsmith.smoke_gui', 'beatsmith.shorten', 'beatsmith.stepgen', 'beatsmith.tempo', 'beatsmith.verses', 'tools.chartstats', 'tools.llm_review', 'workers.stems', 'workers.lyrics', 'mutagen', 'sounddevice']
 for pkg in ("librosa", "soundfile", "lazy_loader", "audioread", "soxr", "sounddevice", "_sounddevice_data", "onnxruntime"):
     d, b, h = collect_all(pkg)
     datas += d
@@ -27,7 +39,7 @@ import sys
 if os.path.isdir(SPECPATH + "/ffmpeg"):
     datas.append((SPECPATH + "/ffmpeg", "ffmpeg"))
 
-a = Analysis([root + "/beatsmith_app.py"], pathex=[root], binaries=binaries, datas=datas,
+a = Analysis([root + "/beatsmith_app.py"], pathex=[root, root + "/src"], binaries=binaries, datas=datas,
              hiddenimports=hidden, excludes=["tkinter", "matplotlib", "IPython",
                       "torch", "torchaudio", "demucs"])   # vocal separation is a separate download
 pyz = PYZ(a.pure)

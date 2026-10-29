@@ -47,7 +47,7 @@ Python; the app is PySide6 (`beatsmith_app.py`), the generator is
   resume it or copy incidental changes from that branch without a new
   request. The existing released experimental melody controls are unchanged.
 - **#32 Mac GPU verse detection stays parked.** Feature work is wrapped for
-  now. Paul requested the current documentation/screenshots refresh, not
+  now. Paul approved documentation/screenshots and repository organization, not
   another app feature.
 - The public user documentation is [README](README.md),
   [the app guide](docs/APP_GUIDE.md), [AI Usage](AI_USAGE.md),
@@ -74,9 +74,9 @@ and merges application and release PRs.
 
 | Path | What it is |
 |---|---|
-| `stepgen.py` | the generator: beats, onsets, sections, step placement, `.sm` writer |
-| `beatsmith_app.py` | the app window (queue, settings tabs, editor tab) |
-| `chart_editor.py` | the chart editor |
+| `src/beatsmith/stepgen.py` | the generator: beats, onsets, sections, step placement, `.sm` writer |
+| `src/beatsmith/beatsmith_app.py` | the app window (queue, settings tabs, editor tab) |
+| `src/beatsmith/chart_editor.py` | the chart editor |
 | `groove.py`, `layout.py`, `verses.py`, `chartstats.py` | feel passes, foot layout, repeated sections, stats |
 | `stems.py`, `lyrics.py`, `accel.py`, `addons.py` | vocal separation, verse detection (faster-whisper), GPU choice, opt-in add-on packs |
 | `ai_assist.py`, `models/` | the optional AI assist model (ONNX) |
@@ -89,6 +89,10 @@ and merges application and release PRs.
 | `version.txt`, `packaging/version.py` | shared source version and installer/tag validation |
 | `packaging/RELEASING.md` | release automation setup, review flow and recovery |
 
+Root Python entry points remain compatibility launchers. See
+[the current repository layout](docs/REPOSITORY_LAYOUT.md) for canonical
+module, worker, tool and test locations. User-data/resource locations are unchanged.
+
 ## Run and check
 
 ```bash
@@ -100,7 +104,7 @@ python beatsmith_app.py          # or run_app.bat on Windows
 Existing installer, tempo and form-control checks run with:
 
 ```bash
-python -m unittest discover -s packaging -p "test_*.py"
+python -m unittest discover -s tests -p "test_*.py"
 ```
 
 Both installer jobs run them. Windows CI also exercises the compiled MSI

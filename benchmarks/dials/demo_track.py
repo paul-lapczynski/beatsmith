@@ -4,7 +4,7 @@ so it can ship with the repo. It has what the controls react to: a quiet
 intro, a verse, a build-up into a loud chorus, a breakdown, the chorus
 again (a repeat) and an outro.
 
-    python dialtest/demo_track.py      # -> examples/BeatSmith Demo/beatsmith-demo.ogg
+    python benchmarks/dials/demo_track.py      # -> examples/BeatSmith Demo/beatsmith-demo.ogg
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ BPM = 124
 BEAT = 60 / BPM
 BAR = 4 * BEAT
 S16 = BEAT / 4
-OUT = Path(__file__).resolve().parent.parent / "examples" / "BeatSmith Demo" / "beatsmith-demo.ogg"
+OUT = Path(__file__).resolve().parents[2] / "examples" / "BeatSmith Demo" / "beatsmith-demo.ogg"
 rng = np.random.default_rng(124)
 
 

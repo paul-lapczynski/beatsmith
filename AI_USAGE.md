@@ -99,6 +99,6 @@ underlying song.
 
 This is a description of the app's current behavior, not a promise about an
 external provider's retention policy. For technical verification, the main
-entry points are [AI assist](ai_assist.py), [add-on downloads](addons.py),
-[separation](stems.py), [verse detection](lyrics.py), [artwork](artwork.py)
-and the [separate review tool](llm_review.py).
+entry points are [AI assist](https://github.com/paul-lapczynski/beatsmith/blob/main/src/beatsmith/ai_assist.py), [add-on downloads](https://github.com/paul-lapczynski/beatsmith/blob/main/src/beatsmith/addons.py),
+[separation](https://github.com/paul-lapczynski/beatsmith/blob/main/workers/stems.py), [verse detection](https://github.com/paul-lapczynski/beatsmith/blob/main/workers/lyrics.py), [artwork](https://github.com/paul-lapczynski/beatsmith/blob/main/src/beatsmith/artwork.py)
+and the [separate review tool](https://github.com/paul-lapczynski/beatsmith/blob/main/tools/llm_review.py).

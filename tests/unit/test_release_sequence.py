@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 import unittest
 
-WORKFLOW = Path(__file__).resolve().parent.parent / ".github/workflows/release-please.yml"
+WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/release-please.yml"
 
 
 def step(name):

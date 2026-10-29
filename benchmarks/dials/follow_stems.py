@@ -5,7 +5,7 @@ targets, three seeds each. Every chart is measured against the stems'
 melody (vocal note starts while someone sings, plus the lead line), so
 both kinds are scored against the same idea of where the tune is.
 
-    python dialtest/follow_stems.py "Song.ogg=Song/.stems" ...   [--jobs 4]
+    python benchmarks/dials/follow_stems.py "Song.ogg=Song/.stems" ...   [--jobs 4]
 
 Writes results/follow-stems.jsonl and prints the summary tables; the stems
 are only read (make them with stems.py or the app first).
